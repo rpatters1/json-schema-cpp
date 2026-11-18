@@ -12,8 +12,6 @@ namespace jsonschema::detail {
 using format_function = bool (*)(std::string_view);
 
 /// The built-in checker for a 2020-12 format name, or nullptr if the format is unknown.
-/// `idn-hostname` and `idn-email` are known but are checked only structurally until the
-/// IDNA tables exist (milestone 4c).
 [[nodiscard]] format_function find_builtin_format(std::string_view name) noexcept;
 
 // Exposed for unit tests.
@@ -22,7 +20,8 @@ using format_function = bool (*)(std::string_view);
 [[nodiscard]] bool is_date_time(std::string_view s) noexcept;
 [[nodiscard]] bool is_duration(std::string_view s) noexcept;
 [[nodiscard]] bool is_email(std::string_view s) noexcept;
-[[nodiscard]] bool is_hostname(std::string_view s) noexcept;
+[[nodiscard]] bool is_hostname(std::string_view s);
+[[nodiscard]] bool is_idn_email(std::string_view s);
 [[nodiscard]] bool is_iri(std::string_view s);
 [[nodiscard]] bool is_iri_reference(std::string_view s);
 [[nodiscard]] bool is_uuid(std::string_view s) noexcept;

@@ -40,9 +40,11 @@ install(FILES ${PROJECT_SOURCE_DIR}/LICENSE ${PROJECT_SOURCE_DIR}/NOTICE
 install(FILES ${PROJECT_SOURCE_DIR}/src/metaschemas/LICENSE
     DESTINATION ${CMAKE_INSTALL_DOCDIR}
     RENAME LICENSE.metaschemas)
+# The IDNA tables are always built in; SRELL's Unicode tables are under the same licence.
+install(FILES ${PROJECT_SOURCE_DIR}/src/unicode/LICENSE
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}
+    RENAME LICENSE.unicode)
 if(JSONSCHEMA_REGEX STREQUAL "srell" AND NOT JSONSCHEMA_USE_SYSTEM_SRELL)
     install(FILES ${PROJECT_SOURCE_DIR}/third_party/srell/LICENSE
         DESTINATION ${CMAKE_INSTALL_DOCDIR} RENAME LICENSE.srell)
-    install(FILES ${PROJECT_SOURCE_DIR}/third_party/srell/LICENSE-Unicode
-        DESTINATION ${CMAKE_INSTALL_DOCDIR} RENAME LICENSE.unicode)
 endif()

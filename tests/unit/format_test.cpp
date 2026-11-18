@@ -126,7 +126,8 @@ TEST_CASE("format grammars: email, hostname, uri-template, relative-json-pointer
 
     CHECK(jd::is_hostname("www.example.com"));
     CHECK(jd::is_hostname("xn--bcher-kva.example"));
-    CHECK_FALSE(jd::is_hostname("ab--cd.example"));   // "--" in positions 3-4 is reserved for xn--
+    CHECK(jd::is_hostname("ab--cd.example"));         // only xn-- labels get the IDNA checks
+    CHECK_FALSE(jd::is_hostname("xn--X.example"));     // not valid Punycode
     CHECK_FALSE(jd::is_hostname("-a.example"));
     CHECK_FALSE(jd::is_hostname(std::string(64, 'a') + ".example"));
 

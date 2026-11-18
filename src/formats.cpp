@@ -11,6 +11,8 @@
 
 #include "json/pointer.hpp"
 #include "regex.hpp"
+#include "unicode/idna.hpp"
+#include "unicode/unicode.hpp"
 
 namespace jsonschema::detail {
 
@@ -128,31 +130,49 @@ constexpr bool is_atext(char c) noexcept
     return is_alpha(c) || is_digit(c) || std::string_view("!#$%&'*+-/=?^_`{|}~").find(c) != std::string_view::npos;
 }
 
-bool is_dot_string(std::string_view s) noexcept
+/// RFC 5321 Dot-string; with @p utf8, RFC 6531 also allows any non-ASCII character in atoms.
+bool is_dot_string(std::string_view s, bool utf8) noexcept
 {
     if (s.empty() || s.front() == '.' || s.back() == '.') {
         return false;
     }
-    for (std::size_t i = 0; i < s.size(); ++i) {
-        if (s[i] == '.') {
+    for (std::size_t i = 0; i < s.size();) {
+        const auto c = static_cast<unsigned char>(s[i]);
+        if (c >= 0x80) {
+            std::size_t end = i;
+            if (!utf8 || !unicode::decode_utf8(s, end)) {
+                return false;
+            }
+            i = end;
+            continue;
+        }
+        if (c == '.') {
             if (s[i + 1] == '.') {
                 return false;
             }
-        } else if (!is_atext(s[i])) {
+        } else if (!is_atext(static_cast<char>(c))) {
             return false;
         }
+        ++i;
     }
     return true;
 }
 
-bool is_quoted_string(std::string_view s) noexcept
+/// RFC 5321 Quoted-string; with @p utf8, RFC 6531 also allows any non-ASCII character.
+bool is_quoted_string(std::string_view s, bool utf8) noexcept
 {
     if (s.size() < 2 || s.front() != '"' || s.back() != '"') {
         return false;
     }
     for (std::size_t i = 1; i + 1 < s.size(); ++i) {
         const auto c = static_cast<unsigned char>(s[i]);
-        if (c == '\\') {
+        if (c >= 0x80) {
+            std::size_t end = i;
+            if (!utf8 || !unicode::decode_utf8(s, end) || end > s.size() - 1) {
+                return false;
+            }
+            i = end - 1;
+        } else if (c == '\\') {
             if (i + 2 >= s.size()) {
                 return false;
             }
@@ -227,46 +247,33 @@ bool is_address_literal(std::string_view s)
     return true;
 }
 
-// --- IRI (RFC 3987) -------------------------------------------------------------------
-
-/// Decodes one UTF-8 code point at @p pos; nullopt if ill-formed.
-std::optional<std::uint32_t> decode_utf8(std::string_view s, std::size_t& pos) noexcept
+/// RFC 5321 Mailbox; with @p utf8, the RFC 6531 extension: non-ASCII local parts, and a
+/// domain that is an idn-hostname.
+bool is_mailbox(std::string_view s, bool utf8) noexcept
 {
-    const auto lead = static_cast<unsigned char>(s[pos]);
-    std::size_t length;
-    std::uint32_t cp;
-    if (lead < 0x80) {
-        ++pos;
-        return lead;
-    } else if ((lead & 0xE0) == 0xC0) {
-        length = 2;
-        cp = lead & 0x1Fu;
-    } else if ((lead & 0xF0) == 0xE0) {
-        length = 3;
-        cp = lead & 0x0Fu;
-    } else if ((lead & 0xF8) == 0xF0) {
-        length = 4;
-        cp = lead & 0x07u;
-    } else {
-        return std::nullopt;
+    const std::size_t at = s.rfind('@');
+    if (at == std::string_view::npos || at == 0 || at + 1 == s.size()) {
+        return false;
     }
-    if (pos + length > s.size()) {
-        return std::nullopt;
+    const std::string_view local = s.substr(0, at);
+    const std::string_view domain = s.substr(at + 1);
+    if (local.size() > 64) {
+        return false;
     }
-    for (std::size_t i = 1; i < length; ++i) {
-        const auto c = static_cast<unsigned char>(s[pos + i]);
-        if ((c & 0xC0) != 0x80) {
-            return std::nullopt;
+    if (!is_dot_string(local, utf8) && !is_quoted_string(local, utf8)) {
+        return false;
+    }
+    try {
+        if (domain.front() == '[') {
+            return is_address_literal(domain);
         }
-        cp = (cp << 6) | (c & 0x3Fu);
+        return utf8 ? idna::is_idn_hostname(domain) : is_smtp_domain(domain);
+    } catch (...) {
+        return false;
     }
-    static constexpr std::array<std::uint32_t, 5> minimum = {0, 0, 0x80, 0x800, 0x10000};
-    if (cp < minimum[length] || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) {
-        return std::nullopt;
-    }
-    pos += length;
-    return cp;
 }
+
+// --- IRI (RFC 3987) -------------------------------------------------------------------
 
 /// RFC 3987 ucschar.
 bool is_ucschar(std::uint32_t cp) noexcept
@@ -297,7 +304,7 @@ std::optional<std::string> iri_to_uri(std::string_view s)
     bool in_fragment = false;
     for (std::size_t pos = 0; pos < s.size();) {
         const std::size_t start = pos;
-        const auto cp = decode_utf8(s, pos);
+        const auto cp = unicode::decode_utf8(s, pos);
         if (!cp) {
             return std::nullopt;
         }
@@ -333,6 +340,8 @@ bool format_date_time(std::string_view s) { return is_date_time(s); }
 bool format_duration(std::string_view s) { return is_duration(s); }
 bool format_email(std::string_view s) { return is_email(s); }
 bool format_hostname(std::string_view s) { return is_hostname(s); }
+bool format_idn_email(std::string_view s) { return is_idn_email(s); }
+bool format_idn_hostname(std::string_view s) { return idna::is_idn_hostname(s); }
 bool format_ipv4(std::string_view s) { return is_ipv4_address(s); }
 bool format_ipv6(std::string_view s) { return is_ipv6_address(s); }
 bool format_uri(std::string_view s)
@@ -348,9 +357,6 @@ bool format_uri_template(std::string_view s) { return is_uri_template(s); }
 bool format_json_pointer(std::string_view s) { return json_pointer::parse(s).has_value(); }
 bool format_relative_json_pointer(std::string_view s) { return is_relative_json_pointer(s); }
 bool format_regex(std::string_view s) { return compile_regex(s) != nullptr; }
-// Until the IDNA tables exist (milestone 4c), the internationalized formats accept any
-// string: annotation-only behaviour, as before assertion support.
-bool format_unchecked(std::string_view /*s*/) { return true; }
 
 } // namespace
 
@@ -443,35 +449,25 @@ bool is_duration(std::string_view s) noexcept
 
 bool is_email(std::string_view s) noexcept
 {
-    const std::size_t at = s.rfind('@');
-    if (at == std::string_view::npos || at == 0 || at + 1 == s.size()) {
-        return false;
-    }
-    const std::string_view local = s.substr(0, at);
-    const std::string_view domain = s.substr(at + 1);
-    if (local.size() > 64) {
-        return false;
-    }
-    if (!is_dot_string(local) && !is_quoted_string(local)) {
-        return false;
-    }
-    try {
-        return domain.front() == '[' ? is_address_literal(domain) : is_smtp_domain(domain);
-    } catch (...) {
-        return false;
-    }
+    return is_mailbox(s, false);
 }
 
-bool is_hostname(std::string_view s) noexcept
+bool is_idn_email(std::string_view s)
+{
+    return is_mailbox(s, true);
+}
+
+bool is_hostname(std::string_view s)
 {
     // RFC 1123 host names: dot-separated labels of letters, digits and hyphens, each 1-63
     // characters, not starting or ending with a hyphen; at most 253 characters in all.
-    // Labels with "--" in positions 3-4 are reserved for IDNA ("xn--" A-labels), and an
-    // A-label must not be empty after the prefix.
+    // A label starting "xn--" (in any case) must be a valid IDNA2008 A-label; other labels
+    // with "--" in positions 3-4 are allowed, since RFC 1123 does not reserve them.
     if (s.empty() || s.size() > 253) {
         return false;
     }
     std::size_t start = 0;
+    bool a_labels = false;
     while (true) {
         const std::size_t dot = s.find('.', start);
         const std::string_view label = s.substr(start, dot == std::string_view::npos ? std::string_view::npos : dot - start);
@@ -483,14 +479,10 @@ bool is_hostname(std::string_view s) noexcept
                 return false;
             }
         }
-        if (label.size() >= 4 && label[2] == '-' && label[3] == '-') {
-            const bool a_label = (label[0] == 'x' || label[0] == 'X') && (label[1] == 'n' || label[1] == 'N');
-            if (!a_label || label.size() == 4) {
-                return false;
-            }
-        }
+        a_labels = a_labels
+            || (label.size() >= 4 && (label[0] | 0x20) == 'x' && (label[1] | 0x20) == 'n' && label[2] == '-' && label[3] == '-');
         if (dot == std::string_view::npos) {
-            return true;
+            return !a_labels || idna::has_valid_a_labels(s);
         }
         start = dot + 1;
     }
@@ -629,8 +621,8 @@ format_function find_builtin_format(std::string_view name) noexcept
         {"duration", format_duration},
         {"email", format_email},
         {"hostname", format_hostname},
-        {"idn-email", format_unchecked},
-        {"idn-hostname", format_unchecked},
+        {"idn-email", format_idn_email},
+        {"idn-hostname", format_idn_hostname},
         {"ipv4", format_ipv4},
         {"ipv6", format_ipv6},
         {"iri", format_iri},

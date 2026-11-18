@@ -8,6 +8,7 @@ add_executable(jsonschema_unit_tests
     unit/main.cpp
     unit/classification_test.cpp
     unit/format_test.cpp
+    unit/idna_test.cpp
     unit/json_access_test.cpp
     unit/json_pointer_test.cpp
     unit/output_test.cpp
