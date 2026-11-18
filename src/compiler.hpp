@@ -123,6 +123,8 @@ struct dialect
     } shape = kind::standard;
     const json* meta_schema = nullptr;  ///< for `custom`
     unsigned vocabularies = 0;          ///< `vocabulary` bits that apply
+    /// Vocabularies of custom keywords (`keyword_extension::vocabulary`) the meta-schema lists.
+    std::vector<std::string> extension_vocabularies;
 };
 
 class compiler
@@ -154,6 +156,7 @@ public:
 
 private:
     void compile_node(node& target);
+    [[nodiscard]] const keyword_extension* find_extension(std::string_view name) const noexcept;
     void drain();   ///< compiles queued nodes and binds dynamic anchors; may run nested
     dialect resolve_dialect(const schema_resource& resource);
     void check_cycles() const;

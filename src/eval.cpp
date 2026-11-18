@@ -36,6 +36,8 @@ std::string path_text(const std::vector<path_segment>& segments, std::size_t cou
         } else if (s.shape == path_segment::kind::with_index) {
             text += '/';
             text += std::to_string(s.index);
+        } else if (s.shape == path_segment::kind::with_pointer) {
+            text += s.key;
         }
     }
     return text;
@@ -78,6 +80,8 @@ std::string eval_context::evaluation_path_text(std::string_view last_keyword) co
         } else if (s.shape == path_segment::kind::with_index) {
             text += '/';
             text += std::to_string(s.index);
+        } else if (s.shape == path_segment::kind::with_pointer) {
+            text += s.key;
         }
     }
     if (!last_keyword.empty()) {

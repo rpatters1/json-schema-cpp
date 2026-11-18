@@ -24,6 +24,8 @@ constexpr std::array keyword_table = {
     keyword_definition{"anyOf", keyword_phase::in_place, make_any_of, vocab_applicator},
     keyword_definition{"const", keyword_phase::assertion, make_const, vocab_validation},
     keyword_definition{"contains", keyword_phase::child, make_contains, vocab_applicator},
+    keyword_definition{"contentEncoding", keyword_phase::assertion, make_content_encoding, vocab_content},
+    keyword_definition{"contentMediaType", keyword_phase::assertion, make_content_media_type, vocab_content},
     keyword_definition{"dependencies", keyword_phase::in_place, make_dependencies, vocab_applicator},
     keyword_definition{"dependentRequired", keyword_phase::assertion, make_dependent_required, vocab_validation},
     keyword_definition{"dependentSchemas", keyword_phase::in_place, make_dependent_schemas, vocab_applicator},
@@ -94,6 +96,16 @@ const keyword_definition* find_keyword(std::string_view name)
     const auto it = std::lower_bound(keyword_table.begin(), keyword_table.end(), name,
                                      [](const keyword_definition& d, std::string_view n) { return d.name < n; });
     return it != keyword_table.end() && it->name == name ? &*it : nullptr;
+}
+
+bool is_2020_12_keyword(std::string_view name)
+{
+    // Keywords the compiler handles itself, or that only annotate, besides keyword_table.
+    static constexpr std::array<std::string_view, 20> others = {
+        "$anchor", "$comment", "$defs", "$dynamicAnchor", "$id", "$schema", "$vocabulary",
+        "contentSchema", "default", "definitions", "deprecated", "description", "else",
+        "examples", "maxContains", "minContains", "readOnly", "then", "title", "writeOnly"};
+    return find_keyword(name) != nullptr || std::find(others.begin(), others.end(), name) != others.end();
 }
 
 std::uint64_t non_negative_integer(const compile_scope& scope)

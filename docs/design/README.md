@@ -6,7 +6,7 @@
 | 2 | [Architecture](02-architecture.md) | Registry, compiler, evaluator, annotation flow, `$dynamicRef` |
 | 3 | [Public API](03-public-api.md) | Types, construction, validation entry points, output |
 | 4 | [Schema classification](04-classification.md) | Reporting named-schema matches during validation (the id-map use case) |
-| 5 | [Formats, regex, numbers](05-formats-regex-numbers.md) | Format vocabularies, the regex engine, numeric semantics |
+| 5 | [Formats, regex, numbers, content](05-formats-regex-numbers.md) | Format vocabularies, the regex engine, numeric semantics, Unicode and IDNA, content assertion |
 | 6 | [Testing, build, release](06-testing-build.md) | Test suite runner, CI, packaging, what is reused from pboettch/json-schema-validator |
 | 7 | [Roadmap](07-roadmap.md) | Milestones and open questions |
 | 8 | [Readiness for JSON Schema v1](08-v1-readiness.md) | What the v1 working draft changes, and the versioning strategy for it |

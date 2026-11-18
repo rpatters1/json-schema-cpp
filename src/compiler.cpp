@@ -172,7 +172,40 @@ void compile_scope::fail(std::string_view message) const
 // compiler
 // ---------------------------------------------------------------------------
 
-compiler::compiler(compiled_schema& target, const compile_options& options) : target_(target), options_(options) {}
+compiler::compiler(compiled_schema& target, const compile_options& options) : target_(target), options_(options)
+{
+    std::unordered_set<std::string_view> names;
+    for (const keyword_extension& extension : options_.extra_keywords) {
+        const auto reject = [&](const std::string& why) {
+            throw schema_error("json-schema-cpp: cannot register the custom keyword \"" + extension.name + "\": " + why);
+        };
+        if (extension.name.empty()) {
+            reject("the name is empty");
+        }
+        if (!extension.compile) {
+            reject("compile is not set");
+        }
+        if (is_2020_12_keyword(extension.name)) {
+            reject("it is a JSON Schema 2020-12 keyword");
+        }
+        if (vocabulary_bit(extension.vocabulary) != 0) {
+            reject("its vocabulary is a JSON Schema 2020-12 vocabulary");
+        }
+        if (!names.insert(extension.name).second) {
+            reject("it is registered twice");
+        }
+    }
+}
+
+const keyword_extension* compiler::find_extension(std::string_view name) const noexcept
+{
+    for (const keyword_extension& extension : options_.extra_keywords) {
+        if (extension.name == name) {
+            return &extension;
+        }
+    }
+    return nullptr;
+}
 
 const node* compiler::node_for(const json& schema_value)
 {
@@ -326,6 +359,21 @@ void compiler::compile_node(node& target)
     for (auto it = schema_value.begin(); it != schema_value.end(); ++it) {
         const std::string& name = it.key();
         const json& value = it.value();
+        if (const keyword_extension* extension = options_.extra_keywords.empty() ? nullptr : find_extension(name)) {
+            // A custom keyword still annotates, like any keyword the library does not define.
+            target.annotations.emplace_back(name, &value);
+            const auto& in_effect = dialect_of(*target.resource).extension_vocabularies;
+            if (extension->vocabulary.empty()
+                || std::find(in_effect.begin(), in_effect.end(), extension->vocabulary) != in_effect.end()) {
+                const compile_scope scope(*this, target, name, value);
+                keyword_phase phase = keyword_phase::assertion;
+                if (auto result = make_extension(scope, *extension, phase)) {
+                    result->bind(name, target.location + "/" + encode_fragment(json_pointer::escape(name)));
+                    compiled.push_back({phase, std::move(result)});
+                }
+            }
+            continue;
+        }
         const keyword_definition* definition = find_keyword(name);
         if (definition != nullptr && (definition->vocabulary & vocabularies) == 0) {
             definition = nullptr;   // its vocabulary is not in effect: an unknown keyword
@@ -339,7 +387,7 @@ void compiler::compile_node(node& target)
             }
             continue;
         }
-        if (name == "format") {
+        if (name == "format" || name == "contentEncoding" || name == "contentMediaType") {
             target.annotations.emplace_back(name, &value);     // an annotation whether or not it also asserts
         }
         const compile_scope scope(*this, target, definition->name, value);
@@ -376,7 +424,7 @@ dialect compiler::resolve_dialect(const schema_resource& resource)
         if (resource.parent != nullptr) {
             return dialect_of(*resource.parent);
         }
-        return dialect{dialect::kind::standard, nullptr, vocab_all_2020_12};
+        return dialect{dialect::kind::standard, nullptr, vocab_all_2020_12, {}};
     }
     const auto fail = [&](const std::string& message) {
         throw schema_error("json-schema-cpp: " + message + " (at " + resource.base + "#/$schema)");
@@ -396,12 +444,12 @@ dialect compiler::resolve_dialect(const schema_resource& resource)
     for (std::size_t depth = 0; depth < max_meta_schema_chain; ++depth) {
         const std::string key = resource_key(*current);
         if (key == dialect_2020_12) {
-            return result ? *result : dialect{dialect::kind::standard, nullptr, vocab_all_2020_12};
+            return result ? *result : dialect{dialect::kind::standard, nullptr, vocab_all_2020_12, {}};
         }
         const bool known_other = std::find(other_dialects.begin(), other_dialects.end(), key) != other_dialects.end();
         if (known_other || !visited.insert(key).second) {
             if (options_.accept_other_dialects) {
-                return result ? *result : dialect{dialect::kind::foreign, nullptr, vocab_all_2020_12};
+                return result ? *result : dialect{dialect::kind::foreign, nullptr, vocab_all_2020_12, {}};
             }
             if (known_other) {
                 fail("unsupported dialect " + key + "; json-schema-cpp implements JSON Schema 2020-12 only");
@@ -413,12 +461,12 @@ dialect compiler::resolve_dialect(const schema_resource& resource)
             meta_schema = &target_.schemas.resolve(*current);
         } catch (const schema_error& e) {
             if (options_.accept_other_dialects) {
-                return dialect{dialect::kind::foreign, nullptr, vocab_all_2020_12};
+                return dialect{dialect::kind::foreign, nullptr, vocab_all_2020_12, {}};
             }
             fail("unknown meta-schema: " + unprefixed(e));
         }
         if (!result) {
-            result = dialect{dialect::kind::custom, meta_schema, vocab_all_2020_12};
+            result = dialect{dialect::kind::custom, meta_schema, vocab_all_2020_12, {}};
             if (meta_schema->is_object()) {
                 if (const auto vocabularies = meta_schema->find("$vocabulary"); vocabularies != meta_schema->end()) {
                     if (!vocabularies->is_object()) {
@@ -427,8 +475,13 @@ dialect compiler::resolve_dialect(const schema_resource& resource)
                     result->vocabularies = vocab_core;  // always in effect
                     for (const auto& [vocabulary_uri, required] : vocabularies->items()) {
                         const unsigned bit = vocabulary_bit(vocabulary_uri);
+                        const bool registered = std::any_of(
+                            options_.extra_keywords.begin(), options_.extra_keywords.end(),
+                            [&](const keyword_extension& e) { return !e.vocabulary.empty() && e.vocabulary == vocabulary_uri; });
                         if (bit != 0) {
                             result->vocabularies |= bit;
+                        } else if (registered) {
+                            result->extension_vocabularies.push_back(vocabulary_uri);
                         } else if (required.is_boolean() && required.get<bool>()) {
                             fail("the meta-schema " + key + " requires the vocabulary " + vocabulary_uri +
                                  ", which json-schema-cpp does not support");

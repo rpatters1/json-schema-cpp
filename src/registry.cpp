@@ -260,6 +260,17 @@ const json& registry::resolve(const uri& target)
     return *anchor->second;
 }
 
+void registry::discover_below(const json& container, const json& value, std::string_view relative_pointer)
+{
+    if (locations_.contains(&value)) {
+        return;
+    }
+    const schema_location& base = location_of(container);
+    auto* resource = const_cast<schema_resource*>(base.resource);   // resources_ owns it; the pointer is const for callers
+    current_document_ = resource->document;
+    discover(value, resource, base.pointer + std::string(relative_pointer), base.document_pointer + std::string(relative_pointer), false);
+}
+
 const schema_location& registry::location_of(const json& value) const
 {
     const auto it = locations_.find(&value);
