@@ -1,0 +1,55 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "JSONSCHEMA_WARNINGS_AS_ERRORS": "ON"
+            }
+        },
+        {
+            "name": "debug",
+            "displayName": "Debug",
+            "inherits": "base",
+            "generator": "Ninja",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+        },
+        {
+            "name": "release",
+            "displayName": "Release",
+            "inherits": "base",
+            "generator": "Ninja",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+        },
+        {
+            "name": "sanitize",
+            "displayName": "Debug with ASan + UBSan",
+            "inherits": "debug",
+            "cacheVariables": { "JSONSCHEMA_SANITIZE": "address,undefined" }
+        },
+        {
+            "name": "macos-10.15",
+            "displayName": "Release, macOS 10.15 deployment target",
+            "inherits": "release",
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin" },
+            "cacheVariables": { "CMAKE_OSX_DEPLOYMENT_TARGET": "10.15" }
+        }
+    ],
+    "buildPresets": [
+        { "name": "debug", "configurePreset": "debug" },
+        { "name": "release", "configurePreset": "release" },
+        { "name": "sanitize", "configurePreset": "sanitize" },
+        { "name": "macos-10.15", "configurePreset": "macos-10.15" }
+    ],
+    "testPresets": [
+        { "name": "debug", "configurePreset": "debug", "filter": { "include": { "label": "unit" } }, "output": { "outputOnFailure": true } },
+        { "name": "release", "configurePreset": "release", "filter": { "include": { "label": "unit" } }, "output": { "outputOnFailure": true } },
+        { "name": "sanitize", "configurePreset": "sanitize", "filter": { "include": { "label": "unit" } }, "output": { "outputOnFailure": true } },
+        { "name": "macos-10.15", "configurePreset": "macos-10.15", "filter": { "include": { "label": "unit" } }, "output": { "outputOnFailure": true } },
+        { "name": "suite", "configurePreset": "debug", "filter": { "include": { "label": "suite" } }, "output": { "outputOnFailure": true } }
+    ]
+}

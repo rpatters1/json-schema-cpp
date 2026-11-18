@@ -1,0 +1,4 @@
+{
+    "description": "JSON-Schema-Test-Suite tests that are known and accepted not to pass. Each entry names a file (relative to validation/tests), optionally a test case description and a test description (omitted = all), and a reason. The runner fails if a listed test passes, so this list cannot go stale. See docs/design/06-testing-build.md.",
+    "entries": []
+}

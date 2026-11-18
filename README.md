@@ -2,7 +2,23 @@
 
 A complete JSON Schema **2020-12** validator for [nlohmann::json](https://github.com/nlohmann/json).
 
-> Status: design phase. No code yet. See [docs/design](docs/design/README.md).
+> Status: milestone 0 (project skeleton). The validator itself is not implemented yet.
+> See [docs/design](docs/design/README.md) and the [roadmap](docs/design/07-roadmap.md).
+
+## Building
+
+```sh
+git clone --recurse-submodules https://github.com/rpatters1/json-schema-cpp.git
+cd json-schema-cpp
+cmake --preset debug
+cmake --build --preset debug
+ctest --preset debug        # unit tests
+ctest --preset suite        # JSON-Schema-Test-Suite (2020-12), one test per suite file
+```
+
+Requirements: CMake ≥ 3.21 (presets need 3.25), a C++20 compiler, and
+nlohmann_json ≥ 3.11. nlohmann_json is fetched automatically if no installed copy is
+found. macOS builds support a deployment target of 10.15.
 
 ## Goals
 

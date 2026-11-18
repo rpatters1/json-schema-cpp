@@ -17,6 +17,7 @@ using json = nlohmann::json;
 struct compile_options {
     std::optional<std::string> base_uri;          // default: root $id, else generated urn:uuid
     schema_loader             loader;              // std::function<std::optional<json>(const uri&)>
+    std::vector<resource>     resources;           // {retrieval uri, document} pairs registered before compiling
     format_mode               formats = format_mode::annotate;   // annotate | assert
     bool                      accept_other_dialects = false;     // treat foreign $schema as 2020-12
     bool                      validate_against_metaschema = true;
@@ -31,18 +32,16 @@ public:
     static schema compile(const json& root, compile_options = {});   // throws schema_error
     static schema compile(json&& root, compile_options = {});
 
-    void add_resource(const json& doc, std::string_view uri);        // before compile only; see registry
     const uri& base_uri() const;
-};
-
-class registry {                        // optional: pre-load several documents, then compile from it
-public:
-    void add(const json& doc, std::optional<std::string_view> uri = {});
-    schema compile(std::string_view root_uri, compile_options = {}) &&;
 };
 
 }
 ```
+
+Extra documents are supplied as `compile_options::resources`, and anything else is
+fetched through `loader`. A separate public `registry` class (for sharing pre-loaded
+documents between several compiled schemas) was considered and deferred until there's
+a need for it.
 
 `schema_error` derives from `std::runtime_error`. It carries the schema location and,
 when meta-schema validation failed, the list of meta-schema errors.

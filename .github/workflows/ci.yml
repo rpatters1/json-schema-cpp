@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux GCC
+            os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            config: Release
+          - name: Linux Clang
+            os: ubuntu-latest
+            cc: clang
+            cxx: clang++
+            config: Release
+          - name: Linux GCC shared
+            os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            config: Release
+            extra: -DBUILD_SHARED_LIBS=ON
+          - name: Linux Clang ASan+UBSan
+            os: ubuntu-latest
+            cc: clang
+            cxx: clang++
+            config: Debug
+            extra: -DJSONSCHEMA_SANITIZE=address,undefined
+          - name: macOS AppleClang (10.15 target)
+            os: macos-latest
+            config: Release
+            extra: -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
+          - name: Windows MSVC
+            os: windows-latest
+            config: Release
+          - name: Windows MSVC shared
+            os: windows-latest
+            config: Release
+            extra: -DBUILD_SHARED_LIBS=ON
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Select compiler
+        if: matrix.cc
+        shell: bash
+        run: |
+          echo "CC=${{ matrix.cc }}" >> "$GITHUB_ENV"
+          echo "CXX=${{ matrix.cxx }}" >> "$GITHUB_ENV"
+
+      - name: Configure
+        shell: bash
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.config }}
+          -DJSONSCHEMA_WARNINGS_AS_ERRORS=ON
+          ${{ matrix.extra }}
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.config }} --parallel
+
+      - name: Unit tests
+        run: ctest --test-dir build -C ${{ matrix.config }} -L unit --output-on-failure
+
+  test-suite:
+    name: JSON-Schema-Test-Suite report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel --target jsonschema_suite_runner
+
+      # Informational until milestone 2, when the required suite is expected to pass.
+      # Then remove continue-on-error so the suite gates merges.
+      - name: Run suite
+        continue-on-error: true
+        run: >
+          ./build/tests/jsonschema_suite_runner
+          --tests-dir third_party/JSON-Schema-Test-Suite/validation/tests
+          --expected-failures tests/suite/expected-failures.json
+          --markdown >> "$GITHUB_STEP_SUMMARY"

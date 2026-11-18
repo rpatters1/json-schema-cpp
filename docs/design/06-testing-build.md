@@ -3,14 +3,36 @@
 ## 6.1 Tests
 
 **Official suite.** `third_party/JSON-Schema-Test-Suite` is a git submodule pinned to a
-commit and updated on purpose. A runner (`tests/suite_runner.cpp`) loads every file
-under `tests/draft2020-12/`, registers `remotes/` with the registry under
-`http://localhost:1234/`, and reports results per test case through CTest. Each suite
-file becomes one CTest test, so failures point at a single file.
+commit and updated on purpose. Since 2026 the suite is organized like this:
 
-`tests/expected-failures.json` lists the exceptions: file, case description, test
-description, and reason. The runner fails if something listed starts passing, so the
-list can't go stale.
+- `validation/tests/*.json` and `validation/tests/optional/*.json` hold every dialect's
+  tests in one set of files. Each test case may carry a `compatibility` expression
+  (e.g. `"7"`, `"<=2019"`, `"=2020"`). The runner uses the suite's published matching
+  algorithm to select 2020-12 cases.
+- Schemas carry no `$schema`, so the dialect comes from configuration. That fits the
+  default here, which is that a schema with no `$schema` is 2020-12.
+- Remote schemas live in each case's `externalSchemas` map (retrieval URI → schema), not
+  a shared `remotes/` directory. They must be scoped per test case, which is passed as
+  `compile_options::resources`.
+- `tags` of `format-assertion` / `format-annotation` select the format mode.
+- `proposals/` (unreleased keywords) is not run.
+- `annotations/tests/*.json` is a separate **annotation** suite. It gets its own runner
+  in milestone 2, where it checks the annotation collection that `unevaluated*` and
+  classification depend on.
+
+At the pinned commit, 2020-12 has **2,082 required tests** (431 cases in 59 files) and
+**206 optional tests** (62 cases in 11 files).
+
+The runner (`tests/suite/suite_runner.cpp`) runs one file per CTest test (`suite/<name>`,
+labels `suite` plus `suite-required` or `suite-optional`). Files with no 2020-12 cases
+exit with 77, which CTest reports as skipped. `--markdown` prints a per-file table and
+totals, which CI posts as the job summary.
+
+`tests/suite/expected-failures.json` lists the accepted exceptions. Each entry has a
+file, an optional case description, an optional test description, and a reason.
+Leaving out the case or test means "all" of them. The runner fails if a listed test
+passes, and, on a full run, if an entry matches nothing. That keeps the list from
+going stale.
 
 **Unit tests** (doctest; the suite runner uses it too):
 - `Uri`: parse, resolve and normalize, including the RFC 3986 §5.4 tables.
@@ -45,7 +67,11 @@ few published schema/instance pairs, compared against the predecessor library.
 - Dependencies:
   - `nlohmann_json` ≥ 3.11: required (`find_package`, or FetchContent fallback).
   - `PCRE2`: default on (`JSONSCHEMA_REGEX=pcre2|std`).
-  - Test-only: doctest, Google Benchmark.
+  - Test-only: doctest (header only; fetched without running its CMake, which CMake 4
+    rejects), Google Benchmark.
+- Sources compile into an object library (`jsonschema_objects`). The public library is
+  built from it, and unit tests link it directly, so internal functions are testable in
+  shared builds too.
 - Targets: `jsonschema::jsonschema` (static or shared, `BUILD_SHARED_LIBS`), plus the
   CLI `jsonschema-validate` (schema + instance files → output format of choice).
 - Installed CMake package config, `CMakePresets.json`, and a pkg-config file.
