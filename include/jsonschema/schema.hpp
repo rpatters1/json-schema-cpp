@@ -44,32 +44,43 @@ enum class format_mode
 /// A schema document made available to `$ref` resolution under a retrieval URI.
 struct resource
 {
-    std::string uri;    ///< absolute retrieval URI
-    json document;
+    std::string uri{};      ///< absolute retrieval URI
+    json document{};
 };
 
+/// Every member has a default member initializer, so designated initializers that set only
+/// some members (`{.base_uri = "..."}`) compile cleanly under -Wmissing-field-initializers.
 struct compile_options
 {
-    std::optional<std::string> base_uri;        ///< default: the root `$id`, else a generated `urn:uuid:` URI
-    schema_loader loader;                       ///< consulted for unknown URIs; may be empty
-    std::vector<resource> resources;            ///< documents to register before compiling
+    std::optional<std::string> base_uri{};      ///< default: the root `$id`, else a generated `urn:uuid:` URI
+    schema_loader loader{};                     ///< consulted for unknown URIs; may be empty
+    std::vector<resource> resources{};          ///< documents to register before compiling
     format_mode formats = format_mode::annotate;
     bool accept_other_dialects = false;         ///< treat a non-2020-12 `$schema` as 2020-12
 };
 
 namespace detail { class compiled_schema; }
 
-/// A compiled, immutable schema. Validation is `const` and thread-safe.
-///
-/// Milestone 0: this is a placeholder so that the test-suite runner can be built.
-/// `compile` throws `schema_error` until milestone 1.
+/// A compiled, immutable JSON Schema 2020-12 schema. Validation is `const`, so one
+/// compiled schema can be used from many threads at once. A moved-from `schema` may only
+/// be assigned to or destroyed.
 class JSONSCHEMA_EXPORT schema
 {
 public:
+    /// Compiles @p root, resolving every reference it can reach. Throws `schema_error` if
+    /// the schema is invalid, uses another dialect, or has an unresolvable reference.
     [[nodiscard]] static schema compile(const json& root, compile_options options = {});
+    [[nodiscard]] static schema compile(json&& root, compile_options options = {});
 
-    /// True if @p instance is valid against this schema.
+    /// True if @p instance is valid against this schema. Stops at the first failure.
+    ///
+    /// Throws `schema_error` only for a `$dynamicRef` that recurses forever at one instance
+    /// location, which depends on the dynamic scope and so cannot always be found when compiling.
     [[nodiscard]] bool is_valid(const json& instance) const;
+
+    /// The base URI of the root schema: its `$id`, else `compile_options::base_uri`, else a
+    /// generated `urn:uuid:` URI.
+    [[nodiscard]] const uri& base_uri() const noexcept;
 
     schema(schema&&) noexcept;
     schema& operator=(schema&&) noexcept;

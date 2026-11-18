@@ -2,8 +2,18 @@
 
 A complete JSON Schema **2020-12** validator for [nlohmann::json](https://github.com/nlohmann/json).
 
-> Status: milestone 0 (project skeleton). The validator itself is not implemented yet.
-> See [docs/design](docs/design/README.md) and the [roadmap](docs/design/07-roadmap.md).
+> Status: milestone 1. `schema::compile` and `schema::is_valid` work for every keyword
+> except `unevaluatedProperties`/`unevaluatedItems`; `format` is annotation-only and
+> `pattern` uses an interim `std::regex` backend. Error reporting, annotations and
+> classification come next. See [docs/design](docs/design/README.md) and the
+> [roadmap](docs/design/07-roadmap.md).
+
+```cpp
+#include <jsonschema/jsonschema.hpp>
+
+auto schema = jsonschema::schema::compile(nlohmann::json::parse(schema_text));
+bool ok = schema.is_valid(nlohmann::json::parse(document_text));
+```
 
 ## Building
 
@@ -14,6 +24,10 @@ cmake --preset debug
 cmake --build --preset debug
 ctest --preset debug        # unit tests
 ctest --preset suite        # JSON-Schema-Test-Suite (2020-12), one test per suite file
+
+# Per-file pass counts for the whole suite:
+build/debug/bin/jsonschema_suite_runner --tests-dir third_party/JSON-Schema-Test-Suite/validation/tests \
+    --expected-failures tests/suite/expected-failures.json --markdown
 ```
 
 Requirements: CMake ≥ 3.21 (presets need 3.25), a C++20 compiler, and

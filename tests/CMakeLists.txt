@@ -4,9 +4,12 @@
 add_executable(jsonschema_unit_tests
     unit/main.cpp
     unit/json_access_test.cpp
+    unit/json_pointer_test.cpp
+    unit/schema_test.cpp
     unit/uri_test.cpp
 )
-target_link_libraries(jsonschema_unit_tests PRIVATE jsonschema_objects doctest::doctest)
+find_package(Threads REQUIRED)
+target_link_libraries(jsonschema_unit_tests PRIVATE jsonschema_objects doctest::doctest Threads::Threads)
 set_target_properties(jsonschema_unit_tests PROPERTIES CXX_EXTENSIONS OFF)
 jsonschema_configure_target(jsonschema_unit_tests)
 # doctest (2.4.11 and 2.4.12) includes <ciso646> under Clang, which libstdc++ 15 flags

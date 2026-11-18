@@ -2,7 +2,15 @@
 # those objects, and the unit tests link the same objects directly, so tests can
 # reach internal (non-exported) functions in shared builds too.
 add_library(jsonschema_objects OBJECT
+    compiler.cpp
     json/access.cpp
+    json/pointer.cpp
+    keywords/applicator.cpp
+    keywords/core.cpp
+    keywords/keywords.cpp
+    keywords/validation.cpp
+    regex.cpp
+    registry.cpp
     schema.cpp
     uri.cpp
 )

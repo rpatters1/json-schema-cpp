@@ -5,12 +5,30 @@
 | # | Milestone | Done when |
 |---|-----------|-----------|
 | 0 | **Skeleton** ✅ | CMake, CI matrix, suite submodule and runner (everything failing), JSON access layer, `Uri` with tests |
-| 1 | **Core and validation keywords** | registry, compiler, evaluator without annotations; `$ref`/`$id`/`$anchor`/`$defs`; all validation-vocabulary keywords; applicators except `unevaluated*` |
-| 2 | **Annotations** | frames, `unevaluated*`, `$dynamicRef`, buffered error delivery, classification (doc 4); **required suite passes 100%** |
+| 1 | **Core and validation keywords** ✅ | registry, compiler, evaluator without annotations; `$ref`/`$id`/`$anchor`/`$defs`/`$dynamicRef`; all validation-vocabulary keywords; applicators except `unevaluated*`; suite gates CI through expected failures |
+| 2 | **Annotations** | frames, `unevaluated*`, buffered error delivery and the error sink, classification (doc 4); **required suite passes, apart from format assertions and Unicode regex** (see open question 13) |
 | 3 | **Output and meta-schemas** | embedded meta-schemas and schema self-validation; `$vocabulary`; standard output formats; CLI; Bowtie harness |
 | 4 | **Formats and regex** | PCRE2 backend with ECMA-262 translation; all format checkers incl. IDN/IRI; content hooks; custom keywords API |
 | 5 | **mnxdom adoption** | mnxdom switches to json-schema-cpp; `IdIndexer.cpp` removed; MNX documents with stray properties are now rejected |
 | 6 | **1.0** | optional suite at target; fuzzing clean; benchmarks published; docs; Conan/vcpkg |
+
+**Milestone 1 results:**
+- Required suite: 1,517 of 2,082 tests pass. Optional suite: 139 of 206.
+- Every other test is listed in `tests/suite/expected-failures.json` with the
+  milestone that fixes it. The 565 required failures are:
+  - format assertion: 479, milestone 4.
+  - `unevaluated*` annotations: 76, milestone 2.
+  - Unicode regex: 9, milestone 4.
+  - `$vocabulary`: 1, milestone 3.
+- The 67 optional failures are:
+  - formats: 14.
+  - regex: 25.
+  - `$vocabulary`: 2.
+  - `dependencies`: 14 (open question 12).
+  - bignum: 10, permanent (doc 5.3).
+  - cross-draft: 2, permanent (2020-12 only).
+- `$dynamicRef` moved into milestone 1. It needs only the dynamic-scope stack, not
+  annotations, and the evaluator had to carry that stack anyway.
 
 Classification is in milestone 2, not later, because it shares the annotation frames.
 Building the two together keeps them on the same retention rules.
@@ -42,3 +60,13 @@ doesn't need formats, regex beyond simple `patternProperties`, or the output for
     (proposed), or plan a backend that keeps original number text?
 11. **Package name** on Conan Center/vcpkg: confirm `json-schema-cpp` is free before
    the first release.
+12. **`dependencies`.** The draft-07 keyword, split in 2019-09 into `dependentRequired`
+    and `dependentSchemas`. The optional `dependencies-compatibility` tests expect it
+    to keep working in 2020-12. It is ignored today, as the spec says for unknown
+    keywords. Support it as a compatibility extension (about 30 lines), perhaps behind
+    an option, or leave it ignored (current)?
+13. **What "required suite passes" means for milestone 2.** The reorganized suite puts
+    the `format-assertion`-tagged cases (479 tests) and the `\p{Letter}` regex tests
+    in `validation/tests`, not `optional/`. Both depend on milestone 4 work. Either
+    milestone 2's target excludes them (proposed, reflected in the table above), or
+    format checkers and the PCRE2 backend move ahead of output formats.
