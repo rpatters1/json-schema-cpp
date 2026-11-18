@@ -26,7 +26,7 @@ ctest --preset debug        # unit tests
 ctest --preset suite        # JSON-Schema-Test-Suite (2020-12), one test per suite file
 
 # Per-file pass counts for the whole suite:
-build/debug/tests/jsonschema_suite_runner --tests-dir third_party/JSON-Schema-Test-Suite/validation/tests \
+build/debug/bin/jsonschema_suite_runner --tests-dir third_party/JSON-Schema-Test-Suite/validation/tests \
     --expected-failures tests/suite/expected-failures.json --markdown
 ```
 

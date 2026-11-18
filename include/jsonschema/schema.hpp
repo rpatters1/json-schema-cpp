@@ -44,15 +44,17 @@ enum class format_mode
 /// A schema document made available to `$ref` resolution under a retrieval URI.
 struct resource
 {
-    std::string uri;    ///< absolute retrieval URI
-    json document;
+    std::string uri{};      ///< absolute retrieval URI
+    json document{};
 };
 
+/// Every member has a default member initializer, so designated initializers that set only
+/// some members (`{.base_uri = "..."}`) compile cleanly under -Wmissing-field-initializers.
 struct compile_options
 {
-    std::optional<std::string> base_uri;        ///< default: the root `$id`, else a generated `urn:uuid:` URI
-    schema_loader loader;                       ///< consulted for unknown URIs; may be empty
-    std::vector<resource> resources;            ///< documents to register before compiling
+    std::optional<std::string> base_uri{};      ///< default: the root `$id`, else a generated `urn:uuid:` URI
+    schema_loader loader{};                     ///< consulted for unknown URIs; may be empty
+    std::vector<resource> resources{};          ///< documents to register before compiling
     format_mode formats = format_mode::annotate;
     bool accept_other_dialects = false;         ///< treat a non-2020-12 `$schema` as 2020-12
 };
