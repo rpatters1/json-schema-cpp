@@ -6,3 +6,10 @@ This software includes the following third-party material.
 JSON Schema 2020-12 meta-schemas (src/metaschemas/2020-12/*.json), embedded in the
 library. Copyright (c) 2022 JSON Schema Specification Authors. BSD 3-clause licence;
 see src/metaschemas/LICENSE (installed as share/doc/json-schema-cpp/LICENSE.metaschemas).
+
+SRELL 2026.10 (third_party/srell), the default regex engine, compiled into the library.
+Copyright (c) 2012-2026 Nozomu Katoo. BSD 2-clause licence; see third_party/srell/LICENSE
+(installed as LICENSE.srell). Its Unicode data tables (srell_ucfdata2.h, srell_updata3.h)
+are generated from the Unicode Character Database, Copyright (c) Unicode, Inc., under the
+Unicode License v3; see third_party/srell/LICENSE-Unicode (installed as LICENSE.unicode).
+Not included when built with JSONSCHEMA_REGEX=std or JSONSCHEMA_USE_SYSTEM_SRELL=ON.

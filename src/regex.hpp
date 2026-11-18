@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Robert Patterson
 // SPDX-License-Identifier: MIT
 //
-// Regular expressions for `pattern` and `patternProperties` (design doc 5.2).
+// Regular expressions for `pattern`, `patternProperties` and the `regex` format
+// (design doc 5.2). ECMA-262 syntax, evaluated as if the "u" flag were set.
 //
-// Milestone 1 uses std::regex in ECMAScript mode as an interim backend. It works on
-// UTF-8 bytes rather than code points and lacks Unicode property classes, so the
-// optional ecmascript-regex tests are not expected to pass until the PCRE2 backend
-// (milestone 4) replaces it behind this same interface.
+// Backends, chosen at build time with JSONSCHEMA_REGEX:
+// - srell (default): SRELL, a header-only ECMAScript engine (third_party/srell). Exact
+//   ECMA-262 semantics on code points, including \p{...}.
+// - std: std::regex in ECMAScript mode. Works on UTF-8 bytes, has no \p{...}, and its
+//   details differ between standard libraries.
 #pragma once
 
 #include <memory>
@@ -23,7 +25,8 @@ public:
     virtual ~compiled_regex() = default;
 
     /// True if the pattern matches anywhere in @p utf8 (patterns are not implicitly anchored).
-    /// Safe to call concurrently.
+    /// Safe to call concurrently. Throws `evaluation_error` if the engine gives up on a
+    /// pathological pattern and input (SRELL's backtracking limit).
     [[nodiscard]] virtual bool search(std::string_view utf8) const = 0;
 };
 

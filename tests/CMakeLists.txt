@@ -10,10 +10,14 @@ add_executable(jsonschema_unit_tests
     unit/json_access_test.cpp
     unit/json_pointer_test.cpp
     unit/output_test.cpp
+    unit/regex_test.cpp
     unit/schema_test.cpp
     unit/uri_test.cpp
     unit/validate_test.cpp
 )
+if(JSONSCHEMA_REGEX STREQUAL "srell")
+    target_compile_definitions(jsonschema_unit_tests PRIVATE JSONSCHEMA_REGEX_SRELL)
+endif()
 find_package(Threads REQUIRED)
 target_link_libraries(jsonschema_unit_tests PRIVATE jsonschema_objects doctest::doctest Threads::Threads)
 set_target_properties(jsonschema_unit_tests PROPERTIES CXX_EXTENSIONS OFF)
@@ -61,6 +65,7 @@ if(EXISTS "${JSONSCHEMA_SUITE_TESTS_DIR}")
             COMMAND jsonschema_suite_runner
                 --tests-dir "${JSONSCHEMA_SUITE_TESTS_DIR}"
                 --expected-failures "${JSONSCHEMA_EXPECTED_FAILURES}"
+                --regex-backend ${JSONSCHEMA_REGEX}
                 "${suite_file}")
         if(suite_file MATCHES "^optional/")
             set(suite_labels "suite;suite-optional")

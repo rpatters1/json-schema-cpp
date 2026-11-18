@@ -34,37 +34,36 @@ error, as the format-assertion vocabulary specifies.
 anchoring. `std::regex` can't meet this, because it doesn't support Unicode and differs
 between standard-library implementations.
 
-The design uses an internal interface:
+The library uses a small internal interface, `compiled_regex` with `search(utf8)`. The
+backend is chosen at build time with `JSONSCHEMA_REGEX` (decided in milestone 4a):
 
-```cpp
-class regex_engine {
-public:
-    virtual ~regex_engine() = default;
-    virtual std::unique_ptr<compiled_regex> compile(std::string_view pattern) const = 0;   // throws schema_error
-};
-class compiled_regex {
-public:
-    virtual ~compiled_regex() = default;
-    virtual bool search(std::string_view utf8) const = 0;
-};
-```
+- **SRELL (default).** SRELL is a header-only ECMAScript engine by Nozomu Katoo, vendored
+  in `third_party/srell` (BSD-2-Clause, with Unicode-3.0 data tables).
+  - It implements ECMA-262 itself, so there is no translation layer: the `u` flag is
+    always on, with `\p{...}`, lookbehind and named groups, and matching by code point
+    on UTF-8 input.
+  - Searches are `const`, with per-call state, so a compiled schema can be shared
+    between threads.
+  - SRELL's backtracking limit turns a pathological pattern-and-input pair into an
+    `evaluation_error`, so it never hangs or silently fails to match.
+  - With it, every regex test in the suite passes: `pattern`, `patternProperties`,
+    `ecmascript-regex` and `non-bmp-regex`.
+  - `JSONSCHEMA_USE_SYSTEM_SRELL` uses an installed copy, such as vcpkg's `srell` port.
+- **`std::regex`** (`JSONSCHEMA_REGEX=std`), for builds that want no third-party code.
+  It works on bytes, has no `\p{...}`, and libstdc++ and libc++ differ on details such
+  as `\cX`. Its known failures are listed with `"regex": "std"` in
+  `expected-failures.json`, and a CI job builds this configuration.
 
-Until milestone 4 the only backend is `std::regex` (ECMAScript grammar) behind this
-interface. It treats strings as bytes and has no `\p{...}`, so the suite's Unicode
-regex tests are expected failures until then.
+Why SRELL over the earlier PCRE2 proposal:
+- It is header-only, so there is nothing to link.
+- It gives exact ECMA-262 semantics, where PCRE2 would need a translation pass that has
+  to refuse what it can't translate.
+- SRELL has no official Git repository; releases are zip files. It is vendored at a
+  pinned version (`tools/update-srell.sh` checks the SHA-256) rather than fetched at
+  build time, so builds need no network.
 
-Backends:
-- **PCRE2 (default, recommended).** Use UTF and UCP mode, plus a small translation pass
-  for ECMA-262 constructs PCRE2 reads differently (`\d`/`\w` must stay ASCII, `$` has no
-  trailing-newline special case, no possessive or atomic syntax, and named groups are
-  `(?<n>)` only). PCRE2's JIT keeps matching fast.
-- **`std::regex`** as a fallback when built without PCRE2, with optional
-  `ecmascript-regex` tests documented as expected failures.
-- Callers may supply their own engine through `compile_options::regex`.
-
-Whether to translate ECMA-262 to PCRE2, or write a small dedicated ECMA-262 regex
-engine, is open (doc 7). Translation is far less work. A dedicated engine removes a
-dependency and makes `ecmascript-regex` compliance exact.
+A caller-supplied engine (`compile_options::regex` in doc 3.1) is not implemented. There
+has been no need for one.
 
 ## 5.3 Numbers
 
