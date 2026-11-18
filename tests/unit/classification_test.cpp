@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Robert Patterson. MIT License; see LICENSE.
+// SPDX-FileCopyrightText: 2026 Robert Patterson
+// SPDX-License-Identifier: MIT
 //
 // Schema classification (design doc 4), on a small schema shaped like MNX: a `type`
 // discriminator chooses among `anyOf` branches, one branch is the default when `type` is

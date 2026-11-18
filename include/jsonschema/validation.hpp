@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Robert Patterson. MIT License; see LICENSE.
+// SPDX-FileCopyrightText: 2026 Robert Patterson
+// SPDX-License-Identifier: MIT
 //
 // Validation results: errors, annotations, and the options of schema::validate (doc 3.2).
 #pragma once

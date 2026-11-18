@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Robert Patterson
+# SPDX-License-Identifier: MIT
+
 cmake_minimum_required(VERSION 3.21)
 
 project(json-schema-cpp

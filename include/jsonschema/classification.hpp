@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Robert Patterson. MIT License; see LICENSE.
+// SPDX-FileCopyrightText: 2026 Robert Patterson
+// SPDX-License-Identifier: MIT
 //
 // Schema classification (design doc 4): which named schemas each instance location matched.
 #pragma once

@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Robert Patterson. MIT License; see LICENSE.
+// SPDX-FileCopyrightText: 2026 Robert Patterson
+// SPDX-License-Identifier: MIT
 //
 // The schema registry (design doc 2.3): owns every schema document and maps absolute
 // URIs, anchors and JSON-pointer fragments to schema values.

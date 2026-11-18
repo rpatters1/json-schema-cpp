@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Robert Patterson. MIT License; see LICENSE.
+// SPDX-FileCopyrightText: 2026 Robert Patterson
+// SPDX-License-Identifier: MIT
 //
 // RFC 6901 JSON Pointer helpers that work on unescaped string tokens, without the
 // exceptions nlohmann::json_pointer throws for missing members.

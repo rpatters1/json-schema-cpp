@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Robert Patterson. MIT License; see LICENSE.
+// SPDX-FileCopyrightText: 2026 Robert Patterson
+// SPDX-License-Identifier: MIT
 //
 // Runs the JSON-Schema-Test-Suite annotation tests (annotations/tests/*.json) for 2020-12.
 //

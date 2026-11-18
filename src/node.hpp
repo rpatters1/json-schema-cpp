@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Robert Patterson. MIT License; see LICENSE.
+// SPDX-FileCopyrightText: 2026 Robert Patterson
+// SPDX-License-Identifier: MIT
 //
 // The compiled schema graph (design doc 2.4) and the evaluator's per-call state (doc 2.5).
 #pragma once
