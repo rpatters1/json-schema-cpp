@@ -24,7 +24,7 @@ using json = nlohmann::json;
 
 class classification_sink;
 
-/// One validation error.
+/// One validation error. A regular value type, so errors can be stored, copied and assigned.
 ///
 /// Field names follow the newer JSON Schema output specification (doc 8). In 2020-12's
 /// own output format, `evaluation_path` is "keywordLocation" and `schema_location` is
@@ -36,7 +36,8 @@ struct error
     std::string schema_location;            ///< absolute URI of the keyword (`uri#/pointer/keyword`)
     std::string_view keyword;               ///< e.g. "required"; "false" for the `false` schema
     std::string message;                    ///< English, for people
-    const json& instance;                   ///< the failing value; refers into the validated instance
+    const json* instance = nullptr;         ///< the failing value; points into the validated instance,
+                                            ///< so it is valid as long as the instance is
 };
 
 /// Receives errors. Errors are delivered only once their enclosing applicators have decided
@@ -50,7 +51,7 @@ public:
     virtual void on_error(const error& e) = 0;
 };
 
-/// Keeps every error. `instance` references stay valid while the validated instance lives.
+/// Keeps every error. `error::instance` stays valid while the validated instance lives.
 class JSONSCHEMA_EXPORT collecting_error_sink final : public error_sink
 {
 public:

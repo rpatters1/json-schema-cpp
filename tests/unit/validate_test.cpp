@@ -64,7 +64,12 @@ TEST_CASE("validate: reports every error with locations")
     CHECK(sink.errors[1].instance_location.to_string() == "/name");
     CHECK(sink.errors[1].evaluation_path == "/properties/name/type");
     CHECK(sink.errors[1].message == "expected string, got integer");
-    CHECK(sink.errors[1].instance == json(5));
+    CHECK(*sink.errors[1].instance == json(5));
+
+    // Errors are regular values: they can be copied and assigned.
+    jsonschema::collecting_error_sink copy;
+    copy = sink;
+    CHECK(copy.errors.size() == sink.errors.size());
 
     CHECK(sink.errors[2].instance_location.to_string() == "/tags/1");
     CHECK(sink.errors[2].evaluation_path == "/properties/tags/items/$ref/minLength");
@@ -154,7 +159,7 @@ TEST_CASE("validate: propertyNames errors are reported on the object")
     const json instance = json::parse(R"({"ok": 1, "toolong": 2})");
     CHECK_FALSE(s.validate(instance, {.errors = &sink}).valid);
     REQUIRE(sink.errors.size() == 1);
-    CHECK(&sink.errors[0].instance == &instance);
+    CHECK(sink.errors[0].instance == &instance);
     CHECK(sink.errors[0].evaluation_path == "/propertyNames");
     CHECK(sink.errors[0].message == "the property name \"toolong\" is not valid: the string has 7 characters, more than the maximum of 3");
 }

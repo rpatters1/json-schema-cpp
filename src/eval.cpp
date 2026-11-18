@@ -61,7 +61,7 @@ void eval_context::deliver(const error_entry& e)
     if (error_limit_reached_) {
         return;
     }
-    const error public_error{e.instance_location, e.evaluation_path, std::string(e.schema_location), e.keyword, e.message, *e.instance};
+    const error public_error{e.instance_location, e.evaluation_path, std::string(e.schema_location), e.keyword, e.message, e.instance};
     ++delivered_errors_;
     if (settings_.max_errors != 0 && delivered_errors_ >= settings_.max_errors) {
         error_limit_reached_ = true;

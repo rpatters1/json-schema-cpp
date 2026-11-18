@@ -88,7 +88,7 @@ struct error {
                                            //   (2020-12 output: "absoluteKeywordLocation")
     std::string_view   keyword;            // e.g. "required"
     std::string        message;            // human-readable
-    const json&        instance;           // the failing value; valid during the callback
+    const json*        instance;           // the failing value; points into the validated instance
 };
 
 class error_sink {
@@ -107,7 +107,9 @@ does by hand.
 Ready-made sinks: `collecting_error_sink` (a vector), `first_error_sink`, and
 `throwing_error_sink`, which throws `validation_error` carrying the error's locations.
 
-`error::instance` always refers into the validated instance. A `propertyNames` failure
+`error` is a regular value type, so errors can be stored and assigned: an exported
+`collecting_error_sink` needs that in Windows DLL builds. `error::instance` is a pointer
+for the same reason, and it always points into the validated instance. A `propertyNames` failure
 is therefore reported on the object, with the property name and the inner reason in
 the message, because the name itself isn't part of the instance.
 
