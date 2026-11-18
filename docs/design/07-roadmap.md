@@ -10,7 +10,7 @@
 | 2 | **Annotations** ✅ | frames, `unevaluated*`, buffered error delivery and the error sink, classification (doc 4); **required suite passes, apart from format assertions and Unicode regex** (decided, open question 13) |
 | 3a | **Meta-schemas** ✅ | embedded meta-schemas and schema self-validation; `$vocabulary` |
 | 3b | **Output** ✅ | standard output formats (flag, basic, detailed); CLI |
-| 3c | **Bowtie** | Bowtie harness |
+| 3c | **Bowtie** ✅ | Bowtie harness, run locally (`tools/bowtie`). Publishing to bowtie.report waits until 1.0 is code-complete |
 | 4 | **Formats and regex** | PCRE2 backend with ECMA-262 translation; all format checkers incl. IDN/IRI; content hooks; custom keywords API |
 | 5 | **mnxdom adoption** | mnxdom switches to json-schema-cpp; `IdIndexer.cpp` removed; MNX documents with stray properties are now rejected |
 | 6 | **1.0** | optional suite at target; fuzzing clean; benchmarks published; docs; Conan/vcpkg |
@@ -56,6 +56,11 @@
   | `is_valid` | 1.4 ms |
   | errors | 1.5 ms |
   | errors and classification | 3.3 ms |
+
+**Milestone 3c results:** Bowtie 2026.11.3, run locally against the harness image.
+- **Validation suite (2020-12):** 409 cases, 0 failed, 9 errored. The 9 are the
+  `\p{…}` Unicode-regex cases, refused by the interim regex backend until milestone 4.
+- **Annotation suite:** 44 cases, 0 failed, 0 errored.
 
 **Milestone 3a results:**
 - **Required suite:** 1,594 of 2,082. `vocabulary.json` now passes.

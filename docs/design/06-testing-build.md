@@ -16,6 +16,9 @@ commit and updated on purpose. Since 2026 the suite is organized like this:
   `compile_options::resources`.
 - `tags` of `format-assertion` / `format-annotation` select the format mode.
 - `proposals/` (unreleased keywords) is not run.
+- **Bowtie** (`tools/bowtie`): a harness for Bowtie's IHOP protocol, a container image,
+  and `run-bowtie.sh`, which runs Bowtie's validation and annotation suites locally. The
+  CTest test `bowtie/session` checks the protocol in CI without Bowtie.
 - `annotations/tests/*.json` is a separate **annotation** suite.
   - `tests/suite/annotation_runner.cpp` runs it as the CTest test `annotations`, with
     labels `suite` and `suite-annotations`. All 55 tests for 2020-12 pass.

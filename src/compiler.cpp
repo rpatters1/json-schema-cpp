@@ -42,6 +42,17 @@ bool produces_annotation(std::string_view name, const compile_options& /*options
     return std::find(not_annotations.begin(), not_annotations.end(), name) == not_annotations.end();
 }
 
+/// The text of a schema_error without the "json-schema-cpp: " prefix, for re-wrapping it.
+std::string unprefixed(const schema_error& e)
+{
+    constexpr std::string_view prefix = "json-schema-cpp: ";
+    std::string_view text = e.what();
+    if (text.starts_with(prefix)) {
+        text.remove_prefix(prefix.size());
+    }
+    return std::string(text);
+}
+
 /// A random (version 4) `urn:uuid:` URI, the base of a schema with no other base URI (doc 2.3).
 uri generated_base_uri()
 {
@@ -117,7 +128,7 @@ compile_scope::resolved_reference compile_scope::reference(std::string_view text
     try {
         result.value = &owner_.schemas().resolve(result.target);
     } catch (const schema_error& e) {
-        fail(e.what());
+        fail(unprefixed(e));
     }
     result.target_node = owner_.node_for(*result.value);
     if (result.target_node == nullptr) {
@@ -401,7 +412,7 @@ dialect compiler::resolve_dialect(const schema_resource& resource)
             if (options_.accept_other_dialects) {
                 return dialect{dialect::kind::foreign, nullptr, vocab_all_2020_12};
             }
-            fail(std::string("unknown meta-schema: ") + e.what());
+            fail("unknown meta-schema: " + unprefixed(e));
         }
         if (!result) {
             result = dialect{dialect::kind::custom, meta_schema, vocab_all_2020_12};

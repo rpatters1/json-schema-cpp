@@ -1,0 +1,6 @@
+(start response: not compared)
+{"ok":true}
+{"ok":false}
+{"results":[{"valid":true},{"valid":false}],"seq":1}
+{"results":[{"annotations":[{"absoluteKeywordLocation":"https://example.com/t#/title","annotation":"T","instanceLocation":"","keyword":"title"}],"valid":true}],"seq":[2,"opaque"]}
+{"context":{"message":"json-schema-cpp: cannot resolve https://example.com/bad#/nowhere: the JSON pointer matches nothing (at https://example.com/bad#/$ref)"},"errored":true,"seq":3}
