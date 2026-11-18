@@ -2,30 +2,34 @@
 
 ## 5.1 Formats
 
-`format` is an annotation by default (format-annotation vocabulary). It becomes an
-assertion when:
-- `compile_options::formats = format_mode::assert`, or
-- the meta-schema in effect requires the format-assertion vocabulary.
+`format` is an annotation by default (format-annotation vocabulary). It also asserts
+when either of these holds:
+- `compile_options::formats = format_mode::assert`;
+- the schema's meta-schema lists the format-assertion vocabulary, as `true` or `false`.
+  The library supports that vocabulary, so it applies either way.
 
-Unknown formats are ignored in annotation mode. In assertion mode they are a compile
-error, as the format-assertion vocabulary specifies.
+Either way, `format` is still reported as an annotation. In assertion mode:
+- An unknown format is a compile error, as the format-assertion vocabulary specifies.
+  `compile_options::extra_formats` registers more format names, or replaces built-in
+  ones.
+- Built-in checkers accept non-string instances. Custom checkers see every type.
 
-| Format | Standard | Source |
-|--------|----------|--------|
-| `date-time` `date` `time` | RFC 3339 (incl. leap seconds) | adapt predecessor `string-format-check.cpp` |
-| `duration` | RFC 3339 Appendix A | new |
-| `email` | RFC 5321 | predecessor `smtp-address-validator.cpp` (Ragel-generated; keep credit) |
-| `idn-email` | RFC 6531 | extend the above |
-| `hostname` | RFC 1123 | adapt |
-| `idn-hostname` | RFC 5890–5893 (IDNA2008) | new; needs Unicode data tables (5.4) |
-| `ipv4` `ipv6` | RFC 2673 / 4291 | adapt; tighten against the suite |
-| `uri` `uri-reference` | RFC 3986 | reuse the library's own `Uri` parser |
-| `iri` `iri-reference` | RFC 3987 | new, on top of `Uri` |
-| `uuid` | RFC 4122 | new |
-| `uri-template` | RFC 6570 | new |
-| `json-pointer` | RFC 6901 | new |
-| `relative-json-pointer` | draft-handrews-relative-json-pointer | new |
-| `regex` | ECMA-262 | the regex engine's own syntax check |
+The checkers are in `src/formats.cpp`, written for this library (milestone 4b):
+
+| Format | Standard | How |
+|--------|----------|-----|
+| `date` `time` `date-time` | RFC 3339 | The offset is required. A leap second (`:60`) is valid only at 23:59 UTC after applying the offset. Lowercase `t`/`z` are allowed. |
+| `duration` | RFC 3339 Appendix A | Nested components (`P1Y2D` is invalid), whole numbers, and weeks stand alone. |
+| `email` | RFC 5321 Mailbox | Dot-string or quoted local part (at most 64 octets); a domain, or an address literal (IPv4, `IPv6:`, general). |
+| `hostname` | RFC 1123, plus RFC 5891 §4.2.3.1 | LDH labels of 1–63 characters, 253 in all. "--" in positions 3–4 is allowed only for `xn--`. Validating the decoded A-label is milestone 4c. |
+| `ipv4` `ipv6` | RFC 3986 §3.2.2 | The `uri` parser's own address grammar. |
+| `uri` `uri-reference` | RFC 3986 | The `uri` parser: absolute, or any reference. |
+| `iri` `iri-reference` | RFC 3987 | Each non-ASCII character must be `ucschar` (or `iprivate` in the query). It is percent-encoded, and the result is parsed as a URI. |
+| `uuid` | RFC 9562 | 8-4-4-4-12 hexadecimal digits, any case, any version. |
+| `uri-template` | RFC 6570 | Expressions with operators, variable lists, prefix and explode modifiers. Apostrophes are allowed in literals, as the suite expects. |
+| `json-pointer` `relative-json-pointer` | RFC 6901, draft-handrews-relative-json-pointer-01 | |
+| `regex` | ECMA-262 | Compiles with the regex backend (5.2). Global inline flag groups such as `(?i)` are rejected, as ECMA-262 does not have them. |
+| `idn-hostname` `idn-email` | RFC 5890–5893, RFC 6531 | Accepted unchecked until the IDNA tables exist (milestone 4c). |
 
 ## 5.2 Regex
 

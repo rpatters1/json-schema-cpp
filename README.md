@@ -2,7 +2,7 @@
 
 A complete JSON Schema **2020-12** validator for [nlohmann::json](https://github.com/nlohmann/json).
 
-> Status: milestone 4a.
+> Status: milestone 4b.
 >
 > **Works now:**
 > - Every 2020-12 keyword, including `unevaluated*` and `$dynamicRef`.
@@ -15,8 +15,11 @@ A complete JSON Schema **2020-12** validator for [nlohmann::json](https://github
 > - ECMA-262 regular expressions with Unicode support (`\p{…}`), using the vendored SRELL
 >   engine.
 >
+> - `format` assertion, for every 2020-12 format except the internationalized host names,
+>   and custom formats.
+>
 > **Not yet:**
-> - `format` is annotation-only.
+> - `idn-hostname` and `idn-email` are not checked (milestone 4c).
 >
 > See [docs/design](docs/design/README.md) and the [roadmap](docs/design/07-roadmap.md).
 

@@ -64,6 +64,10 @@ enum class format_mode
     assert      ///< `format` is also an assertion
 };
 
+/// A custom `format` checker (doc 3.3): true if @p instance is valid for the format. Called
+/// for every instance type; built-in formats accept non-strings, so a checker usually does too.
+using format_checker = std::function<bool(const json& instance)>;
+
 /// A schema document made available to `$ref` resolution under a retrieval URI.
 struct resource
 {
@@ -78,7 +82,11 @@ struct compile_options
     std::optional<std::string> base_uri{};      ///< default: the root `$id`, else a generated `urn:uuid:` URI
     schema_loader loader{};                     ///< consulted for unknown URIs; may be empty
     std::vector<resource> resources{};          ///< documents to register before compiling
+    /// `annotate` (the 2020-12 default) or `assert`. `format` also asserts when the schema's
+    /// meta-schema lists the format-assertion vocabulary.
     format_mode formats = format_mode::annotate;
+    /// Checkers for additional format names, or replacements for built-in ones (by name).
+    std::vector<std::pair<std::string, format_checker>> extra_formats{};
     bool accept_other_dialects = false;         ///< treat a non-2020-12 `$schema` as 2020-12
     /// Validate each schema document against its meta-schema before using it (doc 3.1).
     bool validate_against_metaschema = true;

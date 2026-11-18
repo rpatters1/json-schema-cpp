@@ -63,10 +63,40 @@ private:
 
 #endif
 
+/// True if @p pattern has a global inline flag group such as "(?i)" or "(?ims)". Engines
+/// such as SRELL and PCRE accept these, but ECMA-262 does not. Its modifier groups
+/// "(?i:...)" and "(?-i:...)" (ES2025) are valid and are not matched here.
+bool has_global_inline_flags(std::string_view pattern) noexcept
+{
+    bool in_class = false;
+    for (std::size_t i = 0; i < pattern.size(); ++i) {
+        const char c = pattern[i];
+        if (c == '\\') {
+            ++i;    // skip the escaped character
+        } else if (in_class) {
+            in_class = c != ']';
+        } else if (c == '[') {
+            in_class = true;
+        } else if (c == '(' && i + 1 < pattern.size() && pattern[i + 1] == '?') {
+            std::size_t j = i + 2;
+            while (j < pattern.size() && std::string_view("imsx-").find(pattern[j]) != std::string_view::npos) {
+                ++j;
+            }
+            if (j > i + 2 && j < pattern.size() && pattern[j] == ')') {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 std::unique_ptr<compiled_regex> compile_regex(std::string_view pattern)
 {
+    if (has_global_inline_flags(pattern)) {
+        return nullptr;
+    }
 #if defined(JSONSCHEMA_REGEX_SRELL)
     try {
         srell::u8cregex expression(pattern.data(), pattern.size(), srell::regex_constants::ECMAScript);

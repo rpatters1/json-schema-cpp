@@ -8,6 +8,7 @@
 #include <optional>
 #include <unordered_map>
 
+#include "formats.hpp"
 #include "json/access.hpp"
 #include "keywords/keywords.hpp"
 
@@ -497,6 +498,38 @@ private:
     std::vector<std::pair<std::string, std::vector<std::string>>> dependencies_;
 };
 
+// ---------------------------------------------------------------------------
+// format (assertion mode)
+// ---------------------------------------------------------------------------
+
+class format_keyword final : public keyword
+{
+public:
+    format_keyword(std::string format, format_function builtin, format_checker custom)
+        : format_(std::move(format)), builtin_(builtin), custom_(std::move(custom))
+    {
+    }
+
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* /*annotations*/) const override
+    {
+        bool valid;
+        if (custom_) {
+            valid = custom_(instance);
+        } else {
+            valid = !instance.is_string() || builtin_(ja::string_view_of(instance));
+        }
+        if (!valid) {
+            context.fail(*this, instance, [&] { return "the value " + brief(instance) + " is not a valid " + format_; });
+        }
+        return valid;
+    }
+
+private:
+    std::string format_;
+    format_function builtin_;
+    format_checker custom_;
+};
+
 /// True if the schema's `properties` gives @p name a `const` or single-value `enum` subschema.
 bool is_discriminator(const compile_scope& scope, const std::string& name)
 {
@@ -656,6 +689,29 @@ std::unique_ptr<keyword> make_required(const compile_scope& scope)
         entries.push_back({std::move(name), discriminator});
     }
     return std::make_unique<required_keyword>(std::move(entries));
+}
+
+std::unique_ptr<keyword> make_format(const compile_scope& scope)
+{
+    if (!scope.value().is_string()) {
+        scope.fail("the value must be a string");
+    }
+    const bool asserting = scope.options().formats == format_mode::assert || scope.vocabulary_enabled(vocab_format_assertion);
+    if (!asserting) {
+        return nullptr;     // annotation only; the compiler records the annotation
+    }
+    const std::string& name = scope.value().get_ref<const std::string&>();
+    for (const auto& [custom_name, checker] : scope.options().extra_formats) {
+        if (custom_name == name && checker) {
+            return std::make_unique<format_keyword>(name, nullptr, checker);
+        }
+    }
+    const format_function builtin = find_builtin_format(name);
+    if (builtin == nullptr) {
+        // 2020-12 validation §7.2.3: with format assertion, unknown formats are an error.
+        scope.fail("unknown format \"" + name + "\"; register it with compile_options::extra_formats");
+    }
+    return std::make_unique<format_keyword>(name, builtin, nullptr);
 }
 
 std::unique_ptr<keyword> make_dependent_required(const compile_scope& scope)

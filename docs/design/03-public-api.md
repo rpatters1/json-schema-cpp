@@ -24,7 +24,7 @@ struct compile_options {
     bool                      validate_against_metaschema = true;
     regex_engine_factory      regex;               // default: built-in engine (doc 5)
     classification_options    classification;      // doc 4; off by default
-    std::vector<format_checker_entry>  extra_formats;    // name -> checker
+    std::vector<std::pair<std::string, format_checker>> extra_formats;   // name -> checker (4b)
     std::vector<keyword_extension>     extra_keywords;   // custom keywords (3.5)
 };
 
@@ -164,7 +164,7 @@ failed subschemas, so the evaluator can keep them on request (doc 2.5).
 ## 3.3 Formats and content
 
 ```cpp
-using format_checker  = std::function<bool(std::string_view value)>;   // false: invalid
+using format_checker  = std::function<bool(const json& instance)>;    // false: invalid; sees every type
 using content_checker = std::function<std::optional<std::string>(       // error message or nullopt
     std::string_view encoding, std::string_view media_type, const json& instance)>;
 ```

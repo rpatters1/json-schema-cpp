@@ -30,6 +30,7 @@ constexpr std::array keyword_table = {
     keyword_definition{"enum", keyword_phase::assertion, make_enum, vocab_validation},
     keyword_definition{"exclusiveMaximum", keyword_phase::assertion, make_exclusive_maximum, vocab_validation},
     keyword_definition{"exclusiveMinimum", keyword_phase::assertion, make_exclusive_minimum, vocab_validation},
+    keyword_definition{"format", keyword_phase::assertion, make_format, vocab_format_annotation | vocab_format_assertion},
     keyword_definition{"if", keyword_phase::in_place, make_if, vocab_applicator},
     keyword_definition{"items", keyword_phase::child, make_items, vocab_applicator},
     keyword_definition{"maxItems", keyword_phase::assertion, make_max_items, vocab_validation},
@@ -70,7 +71,8 @@ static_assert(table_is_sorted(), "keyword_table must be sorted by name");
 
 unsigned vocabulary_bit(std::string_view uri)
 {
-    static constexpr std::array<std::pair<std::string_view, unsigned>, 7> known = {{
+    static constexpr std::array<std::pair<std::string_view, unsigned>, 8> known = {{
+        {"https://json-schema.org/draft/2020-12/vocab/format-assertion", vocab_format_assertion},
         {"https://json-schema.org/draft/2020-12/vocab/core", vocab_core},
         {"https://json-schema.org/draft/2020-12/vocab/applicator", vocab_applicator},
         {"https://json-schema.org/draft/2020-12/vocab/unevaluated", vocab_unevaluated},

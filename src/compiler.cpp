@@ -339,6 +339,9 @@ void compiler::compile_node(node& target)
             }
             continue;
         }
+        if (name == "format") {
+            target.annotations.emplace_back(name, &value);     // an annotation whether or not it also asserts
+        }
         const compile_scope scope(*this, target, definition->name, value);
         if (auto result = definition->factory(scope)) {
             result->bind(definition->name, target.location + "/" + encode_fragment(json_pointer::escape(definition->name)));
