@@ -5,6 +5,7 @@
 // and the idn-hostname, idn-email and hostname A-label checks beyond the test suite.
 #include <doctest/doctest.h>
 
+#include <ostream>     // doctest prints std::string_view, which MSVC needs the full ostream for
 #include <string>
 
 #include "formats.hpp"
