@@ -16,42 +16,42 @@ namespace {
 // (`then`/`else` with `if`, `minContains`/`maxContains` with `contains`).
 // `dependencies` is superseded but supported by default (compile_options::legacy_dependencies).
 constexpr std::array keyword_table = {
-    keyword_definition{"$dynamicRef", keyword_phase::reference, make_dynamic_ref},
-    keyword_definition{"$ref", keyword_phase::reference, make_ref},
-    keyword_definition{"additionalProperties", keyword_phase::child, make_additional_properties},
-    keyword_definition{"allOf", keyword_phase::in_place, make_all_of},
-    keyword_definition{"anyOf", keyword_phase::in_place, make_any_of},
-    keyword_definition{"const", keyword_phase::assertion, make_const},
-    keyword_definition{"contains", keyword_phase::child, make_contains},
-    keyword_definition{"dependencies", keyword_phase::in_place, make_dependencies},
-    keyword_definition{"dependentRequired", keyword_phase::assertion, make_dependent_required},
-    keyword_definition{"dependentSchemas", keyword_phase::in_place, make_dependent_schemas},
-    keyword_definition{"enum", keyword_phase::assertion, make_enum},
-    keyword_definition{"exclusiveMaximum", keyword_phase::assertion, make_exclusive_maximum},
-    keyword_definition{"exclusiveMinimum", keyword_phase::assertion, make_exclusive_minimum},
-    keyword_definition{"if", keyword_phase::in_place, make_if},
-    keyword_definition{"items", keyword_phase::child, make_items},
-    keyword_definition{"maxItems", keyword_phase::assertion, make_max_items},
-    keyword_definition{"maxLength", keyword_phase::assertion, make_max_length},
-    keyword_definition{"maxProperties", keyword_phase::assertion, make_max_properties},
-    keyword_definition{"maximum", keyword_phase::assertion, make_maximum},
-    keyword_definition{"minItems", keyword_phase::assertion, make_min_items},
-    keyword_definition{"minLength", keyword_phase::assertion, make_min_length},
-    keyword_definition{"minProperties", keyword_phase::assertion, make_min_properties},
-    keyword_definition{"minimum", keyword_phase::assertion, make_minimum},
-    keyword_definition{"multipleOf", keyword_phase::assertion, make_multiple_of},
-    keyword_definition{"not", keyword_phase::in_place, make_not},
-    keyword_definition{"oneOf", keyword_phase::in_place, make_one_of},
-    keyword_definition{"pattern", keyword_phase::assertion, make_pattern},
-    keyword_definition{"patternProperties", keyword_phase::child, make_pattern_properties},
-    keyword_definition{"prefixItems", keyword_phase::child, make_prefix_items},
-    keyword_definition{"properties", keyword_phase::child, make_properties},
-    keyword_definition{"propertyNames", keyword_phase::child, make_property_names},
-    keyword_definition{"required", keyword_phase::assertion, make_required},
-    keyword_definition{"type", keyword_phase::assertion, make_type},
-    keyword_definition{"unevaluatedItems", keyword_phase::unevaluated, make_unevaluated_items},
-    keyword_definition{"unevaluatedProperties", keyword_phase::unevaluated, make_unevaluated_properties},
-    keyword_definition{"uniqueItems", keyword_phase::assertion, make_unique_items},
+    keyword_definition{"$dynamicRef", keyword_phase::reference, make_dynamic_ref, vocab_core},
+    keyword_definition{"$ref", keyword_phase::reference, make_ref, vocab_core},
+    keyword_definition{"additionalProperties", keyword_phase::child, make_additional_properties, vocab_applicator},
+    keyword_definition{"allOf", keyword_phase::in_place, make_all_of, vocab_applicator},
+    keyword_definition{"anyOf", keyword_phase::in_place, make_any_of, vocab_applicator},
+    keyword_definition{"const", keyword_phase::assertion, make_const, vocab_validation},
+    keyword_definition{"contains", keyword_phase::child, make_contains, vocab_applicator},
+    keyword_definition{"dependencies", keyword_phase::in_place, make_dependencies, vocab_applicator},
+    keyword_definition{"dependentRequired", keyword_phase::assertion, make_dependent_required, vocab_validation},
+    keyword_definition{"dependentSchemas", keyword_phase::in_place, make_dependent_schemas, vocab_applicator},
+    keyword_definition{"enum", keyword_phase::assertion, make_enum, vocab_validation},
+    keyword_definition{"exclusiveMaximum", keyword_phase::assertion, make_exclusive_maximum, vocab_validation},
+    keyword_definition{"exclusiveMinimum", keyword_phase::assertion, make_exclusive_minimum, vocab_validation},
+    keyword_definition{"if", keyword_phase::in_place, make_if, vocab_applicator},
+    keyword_definition{"items", keyword_phase::child, make_items, vocab_applicator},
+    keyword_definition{"maxItems", keyword_phase::assertion, make_max_items, vocab_validation},
+    keyword_definition{"maxLength", keyword_phase::assertion, make_max_length, vocab_validation},
+    keyword_definition{"maxProperties", keyword_phase::assertion, make_max_properties, vocab_validation},
+    keyword_definition{"maximum", keyword_phase::assertion, make_maximum, vocab_validation},
+    keyword_definition{"minItems", keyword_phase::assertion, make_min_items, vocab_validation},
+    keyword_definition{"minLength", keyword_phase::assertion, make_min_length, vocab_validation},
+    keyword_definition{"minProperties", keyword_phase::assertion, make_min_properties, vocab_validation},
+    keyword_definition{"minimum", keyword_phase::assertion, make_minimum, vocab_validation},
+    keyword_definition{"multipleOf", keyword_phase::assertion, make_multiple_of, vocab_validation},
+    keyword_definition{"not", keyword_phase::in_place, make_not, vocab_applicator},
+    keyword_definition{"oneOf", keyword_phase::in_place, make_one_of, vocab_applicator},
+    keyword_definition{"pattern", keyword_phase::assertion, make_pattern, vocab_validation},
+    keyword_definition{"patternProperties", keyword_phase::child, make_pattern_properties, vocab_applicator},
+    keyword_definition{"prefixItems", keyword_phase::child, make_prefix_items, vocab_applicator},
+    keyword_definition{"properties", keyword_phase::child, make_properties, vocab_applicator},
+    keyword_definition{"propertyNames", keyword_phase::child, make_property_names, vocab_applicator},
+    keyword_definition{"required", keyword_phase::assertion, make_required, vocab_validation},
+    keyword_definition{"type", keyword_phase::assertion, make_type, vocab_validation},
+    keyword_definition{"unevaluatedItems", keyword_phase::unevaluated, make_unevaluated_items, vocab_unevaluated},
+    keyword_definition{"unevaluatedProperties", keyword_phase::unevaluated, make_unevaluated_properties, vocab_unevaluated},
+    keyword_definition{"uniqueItems", keyword_phase::assertion, make_unique_items, vocab_validation},
 };
 
 constexpr bool table_is_sorted()
@@ -66,6 +66,25 @@ constexpr bool table_is_sorted()
 static_assert(table_is_sorted(), "keyword_table must be sorted by name");
 
 } // namespace
+
+unsigned vocabulary_bit(std::string_view uri)
+{
+    static constexpr std::array<std::pair<std::string_view, unsigned>, 7> known = {{
+        {"https://json-schema.org/draft/2020-12/vocab/core", vocab_core},
+        {"https://json-schema.org/draft/2020-12/vocab/applicator", vocab_applicator},
+        {"https://json-schema.org/draft/2020-12/vocab/unevaluated", vocab_unevaluated},
+        {"https://json-schema.org/draft/2020-12/vocab/validation", vocab_validation},
+        {"https://json-schema.org/draft/2020-12/vocab/meta-data", vocab_meta_data},
+        {"https://json-schema.org/draft/2020-12/vocab/format-annotation", vocab_format_annotation},
+        {"https://json-schema.org/draft/2020-12/vocab/content", vocab_content},
+    }};
+    for (const auto& [name, bit] : known) {
+        if (name == uri) {
+            return bit;
+        }
+    }
+    return 0;
+}
 
 const keyword_definition* find_keyword(std::string_view name)
 {

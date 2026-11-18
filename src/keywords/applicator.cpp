@@ -991,7 +991,7 @@ std::unique_ptr<keyword> make_contains(const compile_scope& scope)
     const node* subschema = scope.subschema(scope.value());
     const auto limit = [&](std::string_view name) -> std::optional<std::uint64_t> {
         const json* value = scope.sibling(name);
-        if (value == nullptr) {
+        if (value == nullptr || !scope.vocabulary_enabled(vocab_validation)) {   // min/maxContains are validation keywords
             return std::nullopt;
         }
         return non_negative_integer(scope.for_sibling(name, *value));

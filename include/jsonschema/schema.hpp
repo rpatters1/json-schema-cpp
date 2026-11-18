@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <memory>
+#include <span>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -30,6 +31,15 @@ class JSONSCHEMA_EXPORT schema_error : public std::runtime_error
 {
 public:
     using std::runtime_error::runtime_error;
+    schema_error(const std::string& message, std::vector<error> metaschema_errors);
+
+    /// When a schema document failed validation against its meta-schema: the errors.
+    /// Instance locations are locations in the schema document. `error::instance` is null,
+    /// because the document does not outlive the exception.
+    [[nodiscard]] std::span<const error> metaschema_errors() const noexcept;
+
+private:
+    std::shared_ptr<const std::vector<error>> metaschema_errors_;   // shared: keeps copying noexcept
 };
 
 /// Thrown during validation when evaluation can produce neither "valid" nor "invalid"
@@ -69,6 +79,8 @@ struct compile_options
     std::vector<resource> resources{};          ///< documents to register before compiling
     format_mode formats = format_mode::annotate;
     bool accept_other_dialects = false;         ///< treat a non-2020-12 `$schema` as 2020-12
+    /// Validate each schema document against its meta-schema before using it (doc 3.1).
+    bool validate_against_metaschema = true;
     /// Evaluate the superseded draft-07 `dependencies` keyword, as `dependentRequired` for
     /// array members and `dependentSchemas` for schema members. 2020-12 no longer defines it,
     /// but its meta-schema still describes it, and a schema that uses it almost always means

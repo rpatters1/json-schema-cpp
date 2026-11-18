@@ -146,6 +146,19 @@ const uri& schema::base_uri() const noexcept
     return impl_->base_uri;
 }
 
+schema_error::schema_error(const std::string& message, std::vector<error> metaschema_errors)
+    : std::runtime_error(message), metaschema_errors_(std::make_shared<const std::vector<error>>(std::move(metaschema_errors)))
+{
+}
+
+std::span<const error> schema_error::metaschema_errors() const noexcept
+{
+    if (!metaschema_errors_) {
+        return {};
+    }
+    return {metaschema_errors_->data(), metaschema_errors_->size()};
+}
+
 // ---------------------------------------------------------------------------
 // validation.hpp
 // ---------------------------------------------------------------------------

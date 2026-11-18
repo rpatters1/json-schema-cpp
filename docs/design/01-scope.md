@@ -29,9 +29,17 @@
 Unknown keywords are kept as annotations, as the spec requires. They are reachable by
 JSON-pointer `$ref`, but the compiler does not look inside them for `$id`.
 
-`$vocabulary`: a vocabulary set to `true` in a custom meta-schema that the library
-does not recognize is a compile error. A known vocabulary that is left out disables
-its keywords.
+`$vocabulary` (implemented in milestone 3):
+- A vocabulary set to `true` in a custom meta-schema that the library does not
+  recognize is a compile error.
+- An unrecognized one set to `false` is ignored.
+- A known vocabulary that is left out disables its keywords, which are then unknown
+  keywords and are collected as annotations. Core always applies.
+- The vocabularies come from the meta-schema that `$schema` names directly. If it has
+  no `$vocabulary`, all 2020-12 vocabularies apply.
+- A schema resource without `$schema` takes its enclosing resource's vocabularies.
+- Until milestone 4, format-assertion counts as unrecognized: a meta-schema that
+  requires it is refused, as the spec says for unsupported vocabularies.
 
 ## Library qualities
 

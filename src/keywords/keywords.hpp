@@ -22,6 +22,23 @@ enum class keyword_phase : std::uint8_t
     unevaluated
 };
 
+/// The 2020-12 vocabularies, as bits (doc 3: `$vocabulary`). format-assertion is not yet
+/// supported (milestone 4), so a meta-schema that requires it is refused.
+enum vocabulary : unsigned
+{
+    vocab_core = 1u << 0,
+    vocab_applicator = 1u << 1,
+    vocab_unevaluated = 1u << 2,
+    vocab_validation = 1u << 3,
+    vocab_meta_data = 1u << 4,
+    vocab_format_annotation = 1u << 5,
+    vocab_content = 1u << 6,
+    vocab_all_2020_12 = (1u << 7) - 1,
+};
+
+/// The bit for a vocabulary URI, or 0 if it is not one this library implements.
+[[nodiscard]] unsigned vocabulary_bit(std::string_view uri);
+
 /// Returns the compiled keyword, or nullptr if it needs no evaluation (for example
 /// `then`, which `if` compiles, or a `contains` with `minContains: 0` and no maximum).
 using keyword_factory = std::unique_ptr<keyword> (*)(const compile_scope&);
@@ -31,6 +48,7 @@ struct keyword_definition
     std::string_view name;
     keyword_phase phase;
     keyword_factory factory;
+    unsigned vocabulary;    ///< a `vocabulary` bit
 };
 
 /// The definition of a 2020-12 keyword that needs compiling, or nullptr.

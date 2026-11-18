@@ -1,6 +1,23 @@
 # Sources are compiled once into an object library. The public library is built from
 # those objects, and the unit tests link the same objects directly, so tests can
 # reach internal (non-exported) functions in shared builds too.
+# The 2020-12 meta-schemas, embedded as raw string literals (src/metaschemas/README.md).
+set(JSONSCHEMA_METASCHEMA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/metaschemas/2020-12)
+set(JSONSCHEMA_METASCHEMAS
+    schema
+    meta/applicator meta/content meta/core meta/format-annotation meta/format-assertion
+    meta/meta-data meta/unevaluated meta/validation)
+set(JSONSCHEMA_METASCHEMA_ENTRIES "")
+list(LENGTH JSONSCHEMA_METASCHEMAS JSONSCHEMA_METASCHEMA_COUNT)
+foreach(name IN LISTS JSONSCHEMA_METASCHEMAS)
+    set(file ${JSONSCHEMA_METASCHEMA_DIR}/${name}.json)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${file})
+    file(READ ${file} content)
+    string(APPEND JSONSCHEMA_METASCHEMA_ENTRIES
+        "    {\"https://json-schema.org/draft/2020-12/${name}\", R\"jsonschema(${content})jsonschema\"},\n")
+endforeach()
+configure_file(metaschemas/metaschemas.cpp.in ${CMAKE_CURRENT_BINARY_DIR}/metaschemas.cpp @ONLY)
+
 add_library(jsonschema_objects OBJECT
     compiler.cpp
     eval.cpp
@@ -10,6 +27,7 @@ add_library(jsonschema_objects OBJECT
     keywords/core.cpp
     keywords/keywords.cpp
     keywords/validation.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/metaschemas.cpp
     regex.cpp
     registry.cpp
     schema.cpp

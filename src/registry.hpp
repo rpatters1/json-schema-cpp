@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 #include <jsonschema/schema.hpp>
 #include <jsonschema/uri.hpp>
@@ -24,6 +25,9 @@ struct schema_resource
     std::string base;                ///< base_uri.to_string()
     const json* root = nullptr;
     std::string document_pointer;    ///< JSON pointer from the document root to `root`
+    const json* document = nullptr;  ///< the document's root value
+    const schema_resource* parent = nullptr;   ///< enclosing resource, for embedded resources
+    bool builtin = false;            ///< one of the embedded 2020-12 meta-schemas
     std::unordered_map<std::string, const json*> anchors;            ///< `$anchor` and `$dynamicAnchor`
     std::unordered_map<std::string, const json*> dynamic_anchors;    ///< `$dynamicAnchor` only
 };
@@ -75,6 +79,9 @@ public:
     /// `schema_error` for values the registry has never seen.
     [[nodiscard]] const schema_location& location_of(const json& value) const;
 
+    /// Root resources of every document, in registration order.
+    [[nodiscard]] const std::vector<const schema_resource*>& document_resources() const noexcept { return document_resources_; }
+
     /// The resource whose root is @p value, or nullptr.
     [[nodiscard]] const schema_resource* resource_rooted_at(const json& value) const;
 
@@ -82,7 +89,8 @@ public:
     [[nodiscard]] const std::deque<schema_resource>& resources() const noexcept { return resources_; }
 
 private:
-    schema_resource* add_resource(const uri& base, const json& root, const std::string& document_pointer);
+    schema_resource* add_resource(const uri& base, const json& root, const std::string& document_pointer,
+                                  const schema_resource* parent);
     void discover(const json& value, schema_resource* resource, const std::string& pointer,
                   const std::string& document_pointer, bool is_resource_root);
     schema_resource* find(const std::string& key) const;
@@ -93,6 +101,9 @@ private:
     std::unordered_map<std::string, schema_resource*> by_uri_;
     std::unordered_map<const json*, schema_location> locations_;
     std::unordered_map<const json*, schema_resource*> resource_roots_;
+    std::vector<const schema_resource*> document_resources_;
+    const json* current_document_ = nullptr;
+    bool adding_builtin_ = false;
 };
 
 /// The canonical text of a resource URI: normalized, without fragment.

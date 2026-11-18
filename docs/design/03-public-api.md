@@ -45,7 +45,17 @@ documents between several compiled schemas) was considered and deferred until th
 a need for it.
 
 `schema_error` derives from `std::runtime_error`. It carries the schema location and,
-when meta-schema validation failed, the list of meta-schema errors.
+when meta-schema validation failed, the list of meta-schema errors. They are returned by
+`metaschema_errors()`, located in the schema document, with a null `instance`.
+
+**Meta-schema validation** (`validate_against_metaschema`, on by default):
+- Each schema document is validated against its meta-schema when its first node is
+  compiled, so its errors come before the compiler's own checks. Documents that are
+  only registered, and never referenced, are not validated.
+- The 2020-12 meta-schema is compiled once per process and shared. A custom meta-schema
+  is compiled into the schema being built.
+- Documents of other drafts, accepted with `accept_other_dialects`, are not validated.
+- The compiler's own checks of keyword values remain for when validation is off.
 
 `evaluation_error`, also derived from `std::runtime_error`, is thrown *during
 validation* when the result is indeterminate: neither valid nor invalid. Today the only

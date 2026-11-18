@@ -2964,13 +2964,19 @@
       "file": "optional/format-assertion.json",
       "case": "schema that uses custom metaschema with format-assertion: false",
       "test": "format-assertion: false: invalid string",
-      "reason": "milestone 3: $vocabulary"
+      "reason": "milestone 4: format assertion (the format-assertion vocabulary is refused until then)"
     },
     {
       "file": "optional/format-assertion.json",
       "case": "schema that uses custom metaschema with format-assertion: true",
       "test": "format-assertion: true: invalid string",
-      "reason": "milestone 3: $vocabulary"
+      "reason": "milestone 4: format assertion (the format-assertion vocabulary is refused until then)"
+    },
+    {
+      "file": "optional/format-assertion.json",
+      "case": "schema that uses custom metaschema with format-assertion: true",
+      "test": "format-assertion: true: valid string",
+      "reason": "milestone 4: a meta-schema that requires the format-assertion vocabulary is refused until format assertion exists"
     },
     {
       "file": "optional/format-regex.json",
@@ -3067,12 +3073,6 @@
       "file": "patternProperties.json",
       "case": "patternProperties with Unicode property escape",
       "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
-    },
-    {
-      "file": "vocabulary.json",
-      "case": "schema that uses custom metaschema with no validation vocabulary",
-      "test": "no validation: invalid number, but it still validates",
-      "reason": "milestone 3: $vocabulary"
     }
   ]
 }
