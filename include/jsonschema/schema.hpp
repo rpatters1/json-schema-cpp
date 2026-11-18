@@ -59,17 +59,26 @@ struct compile_options
 
 namespace detail { class compiled_schema; }
 
-/// A compiled, immutable schema. Validation is `const` and thread-safe.
-///
-/// Milestone 0: this is a placeholder so that the test-suite runner can be built.
-/// `compile` throws `schema_error` until milestone 1.
+/// A compiled, immutable JSON Schema 2020-12 schema. Validation is `const`, so one
+/// compiled schema can be used from many threads at once. A moved-from `schema` may only
+/// be assigned to or destroyed.
 class JSONSCHEMA_EXPORT schema
 {
 public:
+    /// Compiles @p root, resolving every reference it can reach. Throws `schema_error` if
+    /// the schema is invalid, uses another dialect, or has an unresolvable reference.
     [[nodiscard]] static schema compile(const json& root, compile_options options = {});
+    [[nodiscard]] static schema compile(json&& root, compile_options options = {});
 
-    /// True if @p instance is valid against this schema.
+    /// True if @p instance is valid against this schema. Stops at the first failure.
+    ///
+    /// Throws `schema_error` only for a `$dynamicRef` that recurses forever at one instance
+    /// location, which depends on the dynamic scope and so cannot always be found when compiling.
     [[nodiscard]] bool is_valid(const json& instance) const;
+
+    /// The base URI of the root schema: its `$id`, else `compile_options::base_uri`, else a
+    /// generated `urn:uuid:` URI.
+    [[nodiscard]] const uri& base_uri() const noexcept;
 
     schema(schema&&) noexcept;
     schema& operator=(schema&&) noexcept;

@@ -49,6 +49,10 @@ public:
 };
 ```
 
+Until milestone 4 the only backend is `std::regex` (ECMAScript grammar) behind this
+interface. It treats strings as bytes and has no `\p{...}`, so the suite's Unicode
+regex tests are expected failures until then.
+
 Backends:
 - **PCRE2 (default, recommended).** Use UTF and UCP mode, plus a small translation pass
   for ECMA-262 constructs PCRE2 reads differently (`\d`/`\w` must stay ASCII, `$` has no
