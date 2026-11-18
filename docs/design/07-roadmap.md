@@ -9,7 +9,7 @@
 | 1a | **Readiness** ✅ | doc 8 (JSON Schema v1); `definitions` and `dependencies`; `evaluation_error`; milestone 2 naming fixed in docs 2 and 3 |
 | 2 | **Annotations** ✅ | frames, `unevaluated*`, buffered error delivery and the error sink, classification (doc 4); **required suite passes, apart from format assertions and Unicode regex** (decided, open question 13) |
 | 3a | **Meta-schemas** ✅ | embedded meta-schemas and schema self-validation; `$vocabulary` |
-| 3b | **Output** | standard output formats; CLI |
+| 3b | **Output** ✅ | standard output formats (flag, basic, detailed); CLI |
 | 3c | **Bowtie** | Bowtie harness |
 | 4 | **Formats and regex** | PCRE2 backend with ECMA-262 translation; all format checkers incl. IDN/IRI; content hooks; custom keywords API |
 | 5 | **mnxdom adoption** | mnxdom switches to json-schema-cpp; `IdIndexer.cpp` removed; MNX documents with stray properties are now rejected |
@@ -106,3 +106,7 @@ doesn't need formats, regex beyond simple `patternProperties`, or the output for
     Proposed: stay "2020-12 only" until it is published, then release v1 support as a
     new major version rather than supporting both dialects in one build (doc 8.3).
     Still open: how long to maintain the 2020-12 major version after that.
+15. **`verbose` output.** It needs an evaluation trace of every subschema, including
+    passing ones without annotations. The suggestion is to build it together with the
+    newer output specification's `list` and `hierarchical` formats (doc 8), which need
+    the same trace, rather than for 2020-12 alone.

@@ -78,7 +78,7 @@ class schema {
     // ...
     bool   is_valid(const json& instance) const;                       // fastest path
     result validate(const json& instance, const validation_options& = {}) const;
-    output validate(const json& instance, output_format) const;        // see "Standard output"
+    json   output(const json& instance, output_format = output_format::basic) const;   // see "Standard output"
 };
 
 struct result {
@@ -134,9 +134,26 @@ runs in CI (doc 6).
 
 ### Standard output
 
-`output_format::{flag, basic, detailed, verbose}` (milestone 3) produce the JSON
-structures defined in 2020-12 §12 as `nlohmann::json`. They are built on the same sinks, so they add
-nothing to the core.
+`schema::output(instance, output_format)` returns the structures of 2020-12 §12.4 as
+`nlohmann::json`. It was added in milestone 3b.
+
+- **`flag`**: `{"valid": …}` only. It uses the `is_valid` fast path.
+- **`basic`**: `valid`, then a flat `errors` list (or `annotations` when valid) of output
+  units. Each unit has `keywordLocation`, `absoluteKeywordLocation`, `instanceLocation`
+  and `error` (or `annotation`).
+- **`detailed`**: the same units, nested by the subschema evaluations that enclose them.
+  - A level with a single entry is replaced by that entry, so for the polygon example of
+    §12.5 the output matches the spec's structure.
+  - The nesting comes from a chain of open subschema evaluations, which the evaluator
+    records only for this format.
+- **`verbose`** is not offered. It lists every subschema evaluated, including passing
+  ones that have no annotations, and the evaluator records only errors and annotations.
+  Open question 15.
+
+Units are in evaluation order, so a schema's own assertions come before its subschemas'
+(doc 2.4). §12 doesn't make the order significant. Annotations are the value annotations
+of the annotation sink. The applicators' own annotations, such as the property names that
+`properties` evaluated, are internal to `unevaluated*` and are not reported.
 
 Field and member names inside the library follow the terms of the newer output
 specification (`evaluation_path`, `schema_location`; doc 8). The §12 serializers map

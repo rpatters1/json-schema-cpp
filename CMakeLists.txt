@@ -13,6 +13,7 @@ set(JSONSCHEMA_IS_TOP_LEVEL ${PROJECT_IS_TOP_LEVEL})
 
 option(JSONSCHEMA_BUILD_TESTS "Build json-schema-cpp tests" ${JSONSCHEMA_IS_TOP_LEVEL})
 option(JSONSCHEMA_INSTALL "Generate install rules for json-schema-cpp" ${JSONSCHEMA_IS_TOP_LEVEL})
+option(JSONSCHEMA_BUILD_CLI "Build the json-schema-cpp command-line tool" ${JSONSCHEMA_IS_TOP_LEVEL})
 option(JSONSCHEMA_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(JSONSCHEMA_USE_SYSTEM_NLOHMANN_JSON "Require an installed nlohmann_json instead of fetching it if missing" OFF)
 set(JSONSCHEMA_SANITIZE "" CACHE STRING "Comma-separated sanitizers for this project's targets (e.g. address,undefined)")
@@ -30,6 +31,9 @@ include(JsonSchemaDependencies)
 include(JsonSchemaWarnings)
 
 add_subdirectory(src)
+if(JSONSCHEMA_BUILD_CLI)
+    add_subdirectory(tools/cli)
+endif()
 
 if(JSONSCHEMA_BUILD_TESTS)
     enable_testing()

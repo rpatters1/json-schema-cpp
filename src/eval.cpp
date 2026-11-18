@@ -23,6 +23,51 @@ json::json_pointer eval_context::instance_pointer() const
     return result;
 }
 
+namespace {
+
+std::string path_text(const std::vector<path_segment>& segments, std::size_t count)
+{
+    std::string text;
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto& s = segments[i];
+        json_pointer::append(text, s.keyword);
+        if (s.shape == path_segment::kind::with_key) {
+            json_pointer::append(text, s.key);
+        } else if (s.shape == path_segment::kind::with_index) {
+            text += '/';
+            text += std::to_string(s.index);
+        }
+    }
+    return text;
+}
+
+std::string instance_text(const std::vector<instance_token>& tokens, std::size_t count)
+{
+    std::string text;
+    for (std::size_t i = 0; i < count; ++i) {
+        if (tokens[i].is_index) {
+            text += '/';
+            text += std::to_string(tokens[i].index);
+        } else {
+            json_pointer::append(text, tokens[i].key);
+        }
+    }
+    return text;
+}
+
+} // namespace
+
+std::vector<output_unit> eval_context::current_chain() const
+{
+    std::vector<output_unit> units;
+    units.reserve(chain_.size());
+    for (const auto& c : chain_) {
+        units.push_back({path_text(evaluation_path, c.evaluation_path_length), c.subschema->location,
+                         instance_text(instance_path, c.instance_path_length)});
+    }
+    return units;
+}
+
 std::string eval_context::evaluation_path_text(std::string_view last_keyword) const
 {
     std::string text;
@@ -49,7 +94,10 @@ void eval_context::add_error(std::string_view keyword_name, std::string_view sch
     }
     // The `false` schema is not a keyword: its evaluation path is the schema's own path.
     const std::string_view path_keyword = keyword_name == "false" ? std::string_view() : keyword_name;
-    error_entry e{instance_pointer(), evaluation_path_text(path_keyword), schema_location, keyword_name, std::move(message), &instance};
+    error_entry e{instance_pointer(), evaluation_path_text(path_keyword), schema_location, keyword_name, std::move(message), &instance, {}};
+    if (settings_.record_chains) {
+        e.chain = current_chain();
+    }
     if (open_conditionals_ == 0) {
         deliver(e);
     } else {
@@ -66,6 +114,9 @@ void eval_context::deliver(const error_entry& e)
     ++delivered_errors_;
     if (settings_.max_errors != 0 && delivered_errors_ >= settings_.max_errors) {
         error_limit_reached_ = true;
+    }
+    if (settings_.captured_errors != nullptr) {
+        settings_.captured_errors->push_back(e);
     }
     settings_.errors->on_error(public_error);
 }
@@ -95,7 +146,10 @@ void eval_context::end_conditional(const mark& m, bool keep_errors, const keywor
             errors_.resize(m.errors);
         } else if (!summary.empty()) {
             error_entry e{instance_pointer(), evaluation_path_text(source.name()), source.location(), source.name(),
-                          std::move(summary), &instance};
+                          std::move(summary), &instance, {}};
+            if (settings_.record_chains) {
+                e.chain = current_chain();
+            }
             errors_.insert(errors_.begin() + static_cast<std::ptrdiff_t>(m.errors), std::move(e));
         }
     }
@@ -134,6 +188,9 @@ bool evaluate(const node& n, const json& instance, eval_context& context, frame*
 
     const std::size_t classification_mark = context.classifications_.size();
     const std::size_t annotation_mark = context.annotations_.size();
+    if (context.settings_.record_chains) {
+        context.chain_.push_back({&n, context.evaluation_path.size(), context.instance_path.size()});
+    }
 
     // `via` for classification: the strongest edge since the previous match (doc 4.3).
     const edge saved_via = context.via_;
@@ -161,8 +218,8 @@ bool evaluate(const node& n, const json& instance, eval_context& context, frame*
             std::string location = n.location;
             location += '/';
             location += encode_fragment(json_pointer::escape(name));
-            context.annotations_.push_back(
-                {context.instance_pointer(), context.evaluation_path_text(name), std::move(location), name, value});
+            context.annotations_.push_back({context.instance_pointer(), context.evaluation_path_text(name), std::move(location), name, value,
+                                            context.settings_.record_chains ? context.current_chain() : std::vector<output_unit>()});
         }
     }
 
@@ -198,6 +255,9 @@ bool evaluate(const node& n, const json& instance, eval_context& context, frame*
     context.identity_ = saved_identity;
     context.last_identity_ = !valid && identity;
     context.via_ = saved_via;
+    if (context.settings_.record_chains) {
+        context.chain_.pop_back();
+    }
     if (entered) {
         context.leave_resource();
     }

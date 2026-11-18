@@ -126,6 +126,17 @@ struct validation_options
                                                         ///< classification sink the walk still completes.
 };
 
+/// The standard output formats of JSON Schema 2020-12 §12.4, produced by `schema::output`.
+///
+/// `verbose` is not offered: it reports every subschema evaluated, including passing ones
+/// without annotations, which the evaluator does not record (doc 3.2).
+enum class output_format
+{
+    flag,       ///< `{"valid": true}` only
+    basic,      ///< a flat list of error units (or, when valid, annotation units)
+    detailed    ///< the same units nested by schema structure, single-child levels collapsed
+};
+
 struct result
 {
     bool valid = false;
