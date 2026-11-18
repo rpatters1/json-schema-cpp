@@ -9,11 +9,15 @@
 | 5 | [Formats, regex, numbers](05-formats-regex-numbers.md) | Format vocabularies, the regex engine, numeric semantics |
 | 6 | [Testing, build, release](06-testing-build.md) | Test suite runner, CI, packaging, what is reused from pboettch/json-schema-validator |
 | 7 | [Roadmap](07-roadmap.md) | Milestones and open questions |
+| 8 | [Readiness for JSON Schema v1](08-v1-readiness.md) | What the v1 working draft changes, and the versioning strategy for it |
 
 ## Decisions so far
 
 - 2020-12 only. A schema whose `$schema` names another dialect is rejected by default.
-  An option treats it as 2020-12 anyway.
+  An option treats it as 2020-12 anyway. JSON Schema v1 is expected to be handled by
+  a later major version of the library, not by dual-dialect support (doc 8).
+- Superseded keywords the spec still expects to work are supported: `definitions`
+  always, `dependencies` by default with an opt-out (doc 1).
 - Built on `nlohmann::json`, accessed through a narrow internal layer (see doc 2).
 - A new repository, not a fork. Files reused from pboettch/json-schema-validator keep
   their MIT notices.

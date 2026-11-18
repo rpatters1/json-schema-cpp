@@ -15,6 +15,7 @@ namespace {
 // `format` until milestone 4, `content*`, ...), and keywords that a sibling compiles
 // (`then`/`else` with `if`, `minContains`/`maxContains` with `contains`).
 // `unevaluatedItems` and `unevaluatedProperties` arrive with annotations in milestone 2.
+// `dependencies` is superseded but supported by default (compile_options::legacy_dependencies).
 constexpr std::array keyword_table = {
     keyword_definition{"$dynamicRef", keyword_phase::reference, make_dynamic_ref},
     keyword_definition{"$ref", keyword_phase::reference, make_ref},
@@ -23,6 +24,7 @@ constexpr std::array keyword_table = {
     keyword_definition{"anyOf", keyword_phase::in_place, make_any_of},
     keyword_definition{"const", keyword_phase::assertion, make_const},
     keyword_definition{"contains", keyword_phase::child, make_contains},
+    keyword_definition{"dependencies", keyword_phase::in_place, make_dependencies},
     keyword_definition{"dependentRequired", keyword_phase::assertion, make_dependent_required},
     keyword_definition{"dependentSchemas", keyword_phase::in_place, make_dependent_schemas},
     keyword_definition{"enum", keyword_phase::assertion, make_enum},

@@ -47,6 +47,7 @@ std::unique_ptr<keyword> make_one_of(const compile_scope&);
 std::unique_ptr<keyword> make_not(const compile_scope&);
 std::unique_ptr<keyword> make_if(const compile_scope&);
 std::unique_ptr<keyword> make_dependent_schemas(const compile_scope&);
+std::unique_ptr<keyword> make_dependencies(const compile_scope&);
 std::unique_ptr<keyword> make_properties(const compile_scope&);
 std::unique_ptr<keyword> make_pattern_properties(const compile_scope&);
 std::unique_ptr<keyword> make_additional_properties(const compile_scope&);

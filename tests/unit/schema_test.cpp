@@ -183,10 +183,59 @@ TEST_CASE("schema: reference cycles that never consume the instance are rejected
     CHECK_FALSE(tree.is_valid(json::parse(R"({"a": {"b": 1}})")));
 }
 
-TEST_CASE("schema: $dynamicRef recursion at one instance location throws")
+TEST_CASE("schema: $dynamicRef recursion at one instance location is an evaluation_error")
 {
     const auto s = schema::compile(json::parse(R"({"$dynamicAnchor": "a", "$dynamicRef": "#a"})"));
-    CHECK_THROWS_AS(static_cast<void>(s.is_valid(json(1))), schema_error);
+    CHECK_THROWS_AS(static_cast<void>(s.is_valid(json(1))), jsonschema::evaluation_error);
+}
+
+TEST_CASE("schema: definitions is treated like $defs")
+{
+    // Identifiers inside `definitions` are found without a JSON-pointer reference.
+    const auto by_id = schema::compile(json::parse(R"({
+        "definitions": {"s": {"$id": "https://example.com/s", "type": "string"}},
+        "$ref": "https://example.com/s"
+    })"));
+    CHECK(by_id.is_valid(json("x")));
+    CHECK_FALSE(by_id.is_valid(json(1)));
+
+    const auto by_anchor = schema::compile(json::parse(R"({
+        "definitions": {"n": {"$anchor": "number", "type": "number"}},
+        "properties": {"a": {"$ref": "#number"}}
+    })"));
+    CHECK(by_anchor.is_valid(json::parse(R"({"a": 1})")));
+    CHECK_FALSE(by_anchor.is_valid(json::parse(R"({"a": "1"})")));
+
+    // As with $defs, its contents are not applied to the instance.
+    CHECK(schema::compile(json::parse(R"({"definitions": {"x": false}})")).is_valid(json(1)));
+}
+
+TEST_CASE("schema: legacy dependencies")
+{
+    const json root = json::parse(R"({
+        "dependencies": {"credit": ["billing"], "debit": {"required": ["account"]}}
+    })");
+    const auto s = schema::compile(root);
+    CHECK(s.is_valid(json::parse(R"({"credit": 1, "billing": 2})")));
+    CHECK_FALSE(s.is_valid(json::parse(R"({"credit": 1})")));
+    CHECK(s.is_valid(json::parse(R"({"debit": 1, "account": 2})")));
+    CHECK_FALSE(s.is_valid(json::parse(R"({"debit": 1})")));
+    CHECK(s.is_valid(json::parse(R"([])")));
+
+    const auto strict = schema::compile(root, {.legacy_dependencies = false});
+    CHECK(strict.is_valid(json::parse(R"({"credit": 1})")));
+    CHECK(strict.is_valid(json::parse(R"({"debit": 1})")));
+
+    CHECK(contains(compile_error(json::parse(R"({"dependencies": {"a": [1]}})")), "only strings"));
+    CHECK(contains(compile_error(json::parse(R"({"dependencies": []})")), "#/dependencies"));
+    CHECK(compile_error(json::parse(R"({"dependencies": []})"), {.legacy_dependencies = false}).empty());
+
+    // An identifier inside a schema-form dependency is discovered.
+    const auto nested = schema::compile(json::parse(R"({
+        "dependencies": {"a": {"$id": "https://example.com/dep"}},
+        "properties": {"b": {"$ref": "https://example.com/dep"}}
+    })"));
+    CHECK(nested.is_valid(json::parse(R"({"b": 1})")));
 }
 
 TEST_CASE("schema: $dynamicRef resolves to the outermost dynamic anchor")

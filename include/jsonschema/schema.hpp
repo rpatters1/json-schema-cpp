@@ -30,6 +30,16 @@ public:
     using std::runtime_error::runtime_error;
 };
 
+/// Thrown during validation when evaluation can produce neither "valid" nor "invalid"
+/// (the spec's indeterminate result). Today the only case is a `$dynamicRef` that recurses
+/// forever at one instance location, which depends on the dynamic scope and so cannot always
+/// be detected when compiling.
+class JSONSCHEMA_EXPORT evaluation_error : public std::runtime_error
+{
+public:
+    using std::runtime_error::runtime_error;
+};
+
 /// Fetches a schema document that is not otherwise known. Returns `std::nullopt` if the
 /// URI cannot be loaded. The argument has no fragment.
 using schema_loader = std::function<std::optional<json>(const uri&)>;
@@ -57,6 +67,11 @@ struct compile_options
     std::vector<resource> resources{};          ///< documents to register before compiling
     format_mode formats = format_mode::annotate;
     bool accept_other_dialects = false;         ///< treat a non-2020-12 `$schema` as 2020-12
+    /// Evaluate the superseded draft-07 `dependencies` keyword, as `dependentRequired` for
+    /// array members and `dependentSchemas` for schema members. 2020-12 no longer defines it,
+    /// but its meta-schema still describes it, and a schema that uses it almost always means
+    /// it. Set to false for strict 2020-12 behavior, where it is ignored like any unknown keyword.
+    bool legacy_dependencies = true;
 };
 
 namespace detail { class compiled_schema; }
@@ -74,8 +89,7 @@ public:
 
     /// True if @p instance is valid against this schema. Stops at the first failure.
     ///
-    /// Throws `schema_error` only for a `$dynamicRef` that recurses forever at one instance
-    /// location, which depends on the dynamic scope and so cannot always be found when compiling.
+    /// Throws `evaluation_error` if the result is indeterminate (see `evaluation_error`).
     [[nodiscard]] bool is_valid(const json& instance) const;
 
     /// The base URI of the root schema: its `$id`, else `compile_options::base_uri`, else a

@@ -52,7 +52,7 @@ public:
         auto& stack = context.dynamic_ref_stack;
         for (auto it = stack.rbegin(); it != stack.rend() && it->instance == &instance; ++it) {
             if (it->reference == this) {
-                throw schema_error("json-schema-cpp: infinite recursion through $dynamicRef to " + describe(*target));
+                throw evaluation_error("json-schema-cpp: infinite recursion through $dynamicRef to " + describe(*target));
             }
         }
         stack.push_back({this, &instance});
