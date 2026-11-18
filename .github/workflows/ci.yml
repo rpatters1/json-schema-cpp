@@ -12,13 +12,14 @@ concurrency:
 
 permissions:
   contents: read
+  actions: write   # lets a failing job cancel the rest of the run
 
 jobs:
   build-and-test:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - name: Linux GCC
@@ -81,7 +82,15 @@ jobs:
       # Unit tests plus one test per JSON-Schema-Test-Suite file. Suite tests fail on any
       # result not recorded in tests/suite/expected-failures.json, so they gate regressions.
       - name: Tests
-        run: ctest --test-dir build -C ${{ matrix.config }} --output-on-failure
+        run: ctest --test-dir build -C ${{ matrix.config }} --output-on-failure --timeout 300
+
+      # fail-fast stops only this matrix; this also stops the suite report job.
+      - name: Cancel the run on failure
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
 
   test-suite:
     name: JSON-Schema-Test-Suite report
@@ -101,8 +110,19 @@ jobs:
       # fails only if an outcome differs from tests/suite/expected-failures.json, which
       # includes a stale-entry check that per-file runs cannot do.
       - name: Run suite
-        run: >
-          ./build/tests/jsonschema_suite_runner
-          --tests-dir third_party/JSON-Schema-Test-Suite/validation/tests
-          --expected-failures tests/suite/expected-failures.json
-          --markdown >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
+        run: |
+          runner=./build/bin/jsonschema_suite_runner
+          args="--tests-dir third_party/JSON-Schema-Test-Suite/validation/tests --expected-failures tests/suite/expected-failures.json"
+          "$runner" $args --markdown >> "$GITHUB_STEP_SUMMARY" || {
+            # Show which outcomes differ from expected-failures.json.
+            "$runner" $args | grep -v ' 0 failed, 0 errored (.* 0 unexpected passes)' || true
+            exit 1
+          }
+
+      - name: Cancel the run on failure
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}

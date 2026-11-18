@@ -15,6 +15,14 @@ option(JSONSCHEMA_USE_SYSTEM_NLOHMANN_JSON "Require an installed nlohmann_json i
 set(JSONSCHEMA_SANITIZE "" CACHE STRING "Comma-separated sanitizers for this project's targets (e.g. address,undefined)")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+# Put executables and DLLs side by side, so that Windows shared builds can run the tests
+# (a missing DLL otherwise opens a modal error dialog that blocks CTest).
+if(PROJECT_IS_TOP_LEVEL)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
+endif()
+
 include(JsonSchemaDependencies)
 include(JsonSchemaWarnings)
 
