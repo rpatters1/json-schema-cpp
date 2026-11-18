@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Robert Patterson. MIT License; see LICENSE.
+// SPDX-FileCopyrightText: 2026 Robert Patterson
+// SPDX-License-Identifier: MIT
 //
 // Behaviour of schema::compile and schema::is_valid that the official test suite does
 // not cover: errors, dialects, loading, base URIs.

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Robert Patterson
+# SPDX-License-Identifier: MIT
+
 include(FetchContent)
 
 # nlohmann_json >= 3.11: use an installed package if present, otherwise fetch it.

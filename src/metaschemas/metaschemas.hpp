@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Robert Patterson. MIT License; see LICENSE.
+// SPDX-FileCopyrightText: 2026 Robert Patterson
+// SPDX-License-Identifier: MIT
 //
 // The embedded JSON Schema 2020-12 meta-schemas (doc 2.3: built in, never loaded).
 #pragma once

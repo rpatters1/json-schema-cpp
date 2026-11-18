@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Robert Patterson
+# SPDX-License-Identifier: MIT
+#
 # Sources are compiled once into an object library. The public library is built from
 # those objects, and the unit tests link the same objects directly, so tests can
 # reach internal (non-exported) functions in shared builds too.

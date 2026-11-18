@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Robert Patterson
+# SPDX-License-Identifier: MIT
+#
 # ---------------------------------------------------------------------------
 # Unit tests (label: unit). These must always pass.
 # ---------------------------------------------------------------------------

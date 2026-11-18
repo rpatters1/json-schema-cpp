@@ -1,4 +1,5 @@
-// Copyright (c) 2026 Robert Patterson. MIT License; see LICENSE.
+// SPDX-FileCopyrightText: 2026 Robert Patterson
+// SPDX-License-Identifier: MIT
 //
 // Internal JSON access layer (design doc 2.1). The validator core uses only these
 // functions to inspect instances and schemas, so that nlohmann::json details stay here.
