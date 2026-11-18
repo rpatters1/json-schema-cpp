@@ -76,6 +76,11 @@ public:
     /// are fetched with the loader. Throws `schema_error` if the URI cannot be resolved.
     const json& resolve(const uri& target);
 
+    /// Discovers @p value, a subschema at @p relative_pointer (escaped, starting with "/")
+    /// below the schema object @p container, which must have a known location. For
+    /// subschemas of custom keywords, which discovery does not follow.
+    void discover_below(const json& container, const json& value, std::string_view relative_pointer);
+
     /// The location of a schema value that was discovered or resolved. Throws
     /// `schema_error` for values the registry has never seen.
     [[nodiscard]] const schema_location& location_of(const json& value) const;

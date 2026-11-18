@@ -2,7 +2,7 @@
 
 A complete JSON Schema **2020-12** validator for [nlohmann::json](https://github.com/nlohmann/json).
 
-> Status: milestone 4c.
+> Status: milestone 4d.
 >
 > **Works now:**
 > - Every 2020-12 keyword, including `unevaluated*` and `$dynamicRef`.
@@ -14,14 +14,14 @@ A complete JSON Schema **2020-12** validator for [nlohmann::json](https://github
 > - The standard output formats `flag`, `basic` and `detailed`, and a command-line tool.
 > - ECMA-262 regular expressions with Unicode support (`\p{…}`), using the vendored SRELL
 >   engine.
->
 > - `format` assertion for every 2020-12 format, including `idn-hostname` and `idn-email`
 >   (UTS #46 and IDNA2008, Unicode 17.0.0), and custom formats.
+> - Opt-in content assertion (`contentEncoding`, `contentMediaType`, `contentSchema`),
+>   with pluggable decoders and parsers.
+> - Custom keywords: assertions and applicators, optionally tied to a `$vocabulary`.
 > - The whole required JSON-Schema-Test-Suite passes.
 >
-> **Not yet:**
-> - Content hooks (`contentEncoding`, `contentMediaType`, `contentSchema` assertion) and an
->   API for custom keywords (milestone 4d).
+> **Next:** adoption in mnxdom (milestone 5), then 1.0.
 >
 > See [docs/design](docs/design/README.md) and the [roadmap](docs/design/07-roadmap.md).
 

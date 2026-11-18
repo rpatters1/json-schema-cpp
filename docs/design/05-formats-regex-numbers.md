@@ -1,4 +1,4 @@
-# 5. Formats, regex, numbers
+# 5. Formats, regex, numbers, content
 
 ## 5.1 Formats
 
@@ -104,3 +104,37 @@ has been no need for one.
   (`src/unicode/README.md`). Every `NormalizationTest.txt` line passes. Against
   `IdnaTestV2.txt`, nothing UTS #46 rejects is accepted, and the only names UTS #46
   accepts but we reject contain code points it marks as not valid under IDNA2008.
+
+## 5.5 Content
+
+`contentEncoding`, `contentMediaType` and `contentSchema` are annotations in 2020-12, and
+JSON Schema v1 says implementations must not decode or validate content automatically
+(doc 8). Assertion is therefore opt-in: `compile_options::content = content_mode::assert`
+(milestone 4d). The annotations are reported either way.
+
+When asserting, the three keywords of a schema object are evaluated together, on strings:
+1. **Decode.** With `contentEncoding`, the string is decoded. Built in are RFC 4648
+   `base64` and `base16`, `base32` (padding required), and `base64url` (padding optional).
+   Names match ignoring case.
+2. **Parse.** With `contentMediaType`, the content is parsed. Built in are
+   `application/json` and every `+json` type. Media types match ignoring case and
+   parameters.
+3. **Validate.** With a parsed value and `contentSchema`, the value is validated against
+   it. The value is not part of the instance, so, as with `propertyNames`, one error is
+   reported on the string, carrying the first inner reason.
+
+- **Unknown names.** An encoding or media type the library doesn't know only annotates. An
+  unknown encoding also stops the media type and `contentSchema` from being checked, since
+  the content can't be decoded. This is unlike `format`, where the format-assertion
+  vocabulary requires unknown names to be refused; nothing similar exists for content.
+  Other validators differ: the Rust `jsonschema` crate also ignores unknown names, and
+  Perl's JSON::Schema::Modern aborts evaluation. An opt-in strict setting, refusing unknown
+  names when compiling, can be added if there is demand (decided, milestone 4d).
+- **Errors.** Each step reports at its own keyword location.
+- **Extensions.** `extra_content_encodings` and `extra_media_types` add names or replace
+  built-in ones (doc 3.3).
+- **Code.** The decoders are in `src/content.cpp`, and the keyword is in
+  `src/keywords/content.cpp`.
+- **Tests.** The suite's `optional/content.json` targets draft-07 only, so unit tests
+  cover this.
+

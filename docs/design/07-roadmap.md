@@ -14,7 +14,7 @@
 | 4a | **Regex** ✅ | SRELL backend (vendored), `std::regex` as an option |
 | 4b | **Formats** ✅ | format checkers and assertion mode; format-assertion vocabulary; `extra_formats` |
 | 4c | **IDNA** ✅ | Unicode tables (generated and committed); `idn-hostname`, `idn-email` |
-| 4d | **Extensions** | content hooks; custom keywords API |
+| 4d | **Extensions** ✅ | content hooks; custom keywords API |
 | 5 | **mnxdom adoption** | mnxdom switches to json-schema-cpp; `IdIndexer.cpp` removed; MNX documents with stray properties are now rejected |
 | 6 | **1.0** | optional suite at target; fuzzing clean; benchmarks published; docs; Conan/vcpkg |
 
@@ -59,6 +59,19 @@
   | `is_valid` | 1.4 ms |
   | errors | 1.5 ms |
   | errors and classification | 3.3 ms |
+
+**Milestone 4d results:**
+- **Content assertion,** opt-in with `content_mode::assert`, for the built-in RFC 4648
+  encodings and JSON media types, plus `contentSchema`. Decoders and parsers can be added
+  or replaced (doc 3.3, 5.5).
+- **Custom keywords** (doc 3.5):
+  - assertions;
+  - in-place and child subschemas, applied or tested;
+  - an optional vocabulary, tied to `$vocabulary`.
+- **Out of scope for now:** custom keywords contribute nothing to `unevaluated*`, and
+  produce no annotations beyond their own value.
+- **Suites:** results are unchanged. Required 2,082 / 2,082, optional 194 / 206.
+- The CLI gains `--assert-content`.
 
 **Milestone 4c results:**
 - **Required suite:** 2,082 of 2,082.

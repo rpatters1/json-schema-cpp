@@ -98,6 +98,18 @@ std::unique_ptr<keyword> make_required(const compile_scope&);
 std::unique_ptr<keyword> make_dependent_required(const compile_scope&);
 std::unique_ptr<keyword> make_format(const compile_scope&);
 
+// content.cpp
+std::unique_ptr<keyword> make_content_encoding(const compile_scope&);
+std::unique_ptr<keyword> make_content_media_type(const compile_scope&);
+
+// extension.cpp
+/// Compiles one occurrence of a custom keyword; sets @p phase from the subschemas it uses.
+std::unique_ptr<keyword> make_extension(const compile_scope& scope, const keyword_extension& extension, keyword_phase& phase);
+
+/// True if @p name is a keyword of JSON Schema 2020-12 (any vocabulary, including the
+/// superseded `definitions` and `dependencies`).
+[[nodiscard]] bool is_2020_12_keyword(std::string_view name);
+
 /// Helpers shared by keyword files.
 /// A non-negative integer keyword value (`1.0` is accepted, values above 2^64-1 saturate).
 [[nodiscard]] std::uint64_t non_negative_integer(const compile_scope& scope);

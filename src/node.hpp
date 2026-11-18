@@ -153,13 +153,14 @@ enum class edge : std::uint8_t
     in_place
 };
 
-/// One step of the evaluation path: a keyword, optionally with a member name or index.
+/// One step of the evaluation path: a keyword, optionally with a member name or index, or
+/// with an already-escaped JSON pointer into the keyword's value (custom keywords).
 struct path_segment
 {
     std::string_view keyword;
     std::string_view key;
     std::size_t index = 0;
-    enum class kind : std::uint8_t { keyword_only, with_key, with_index } shape = kind::keyword_only;
+    enum class kind : std::uint8_t { keyword_only, with_key, with_index, with_pointer } shape = kind::keyword_only;
 };
 
 /// One step of the instance location.

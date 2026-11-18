@@ -8,11 +8,14 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include <nlohmann/json.hpp>
 
 #include <jsonschema/classification.hpp>
+#include <jsonschema/custom_keyword.hpp>
 #include <jsonschema/export.hpp>
 #include <jsonschema/uri.hpp>
 #include <jsonschema/validation.hpp>
@@ -68,6 +71,22 @@ enum class format_mode
 /// for every instance type; built-in formats accept non-strings, so a checker usually does too.
 using format_checker = std::function<bool(const json& instance)>;
 
+/// How the `content*` keywords behave (doc 5.5).
+enum class content_mode
+{
+    annotate,   ///< annotations only (the 2020-12 default)
+    assert      ///< also check `contentEncoding`, `contentMediaType` and `contentSchema`
+};
+
+/// Decodes a string in a `contentEncoding` (doc 3.3): the decoded bytes, or `std::nullopt`
+/// if the string is not valid in the encoding.
+using content_decoder = std::function<std::optional<std::string>(std::string_view encoded)>;
+
+/// Parses content of a `contentMediaType` (doc 3.3): `std::nullopt` if the content is not
+/// valid for the media type, else the value `contentSchema` validates. A media type with no
+/// JSON form can return any value, such as `json()`, and is not used with `contentSchema`.
+using content_parser = std::function<std::optional<json>(std::string_view content)>;
+
 /// A schema document made available to `$ref` resolution under a retrieval URI.
 struct resource
 {
@@ -87,6 +106,18 @@ struct compile_options
     format_mode formats = format_mode::annotate;
     /// Checkers for additional format names, or replacements for built-in ones (by name).
     std::vector<std::pair<std::string, format_checker>> extra_formats{};
+    /// `annotate` (the 2020-12 default) or `assert`. Assertion checks known encodings and
+    /// media types only: built in are `base64`, `base64url`, `base32`, `base16`, and
+    /// `application/json` and other `+json` types.
+    content_mode content = content_mode::annotate;
+    /// Decoders for additional `contentEncoding` names, or replacements for built-in ones.
+    /// Names match ignoring case.
+    std::vector<std::pair<std::string, content_decoder>> extra_content_encodings{};
+    /// Parsers for additional `contentMediaType` values, or replacements for built-in ones.
+    /// Matched ignoring case and parameters (`; charset=...`).
+    std::vector<std::pair<std::string, content_parser>> extra_media_types{};
+    /// Custom keywords (doc 3.5).
+    std::vector<keyword_extension> extra_keywords{};
     bool accept_other_dialects = false;         ///< treat a non-2020-12 `$schema` as 2020-12
     /// Validate each schema document against its meta-schema before using it (doc 3.1).
     bool validate_against_metaschema = true;

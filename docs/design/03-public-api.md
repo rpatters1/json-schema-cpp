@@ -19,13 +19,15 @@ struct compile_options {
     schema_loader             loader;              // std::function<std::optional<json>(const uri&)>
     std::vector<resource>     resources;           // {retrieval uri, document} pairs registered before compiling
     format_mode               formats = format_mode::annotate;   // annotate | assert
-    bool                      accept_other_dialects = false;     // treat foreign $schema as 2020-12
-    bool                      legacy_dependencies = true;        // evaluate draft-07 `dependencies` (doc 1)
-    bool                      validate_against_metaschema = true;
-    regex_engine_factory      regex;               // default: built-in engine (doc 5)
-    classification_options    classification;      // doc 4; off by default
-    std::vector<std::pair<std::string, format_checker>> extra_formats;   // name -> checker (4b)
+    std::vector<std::pair<std::string, format_checker>> extra_formats;          // name -> checker (3.3)
+    content_mode              content = content_mode::annotate;  // annotate | assert (3.3)
+    std::vector<std::pair<std::string, content_decoder>> extra_content_encodings;   // 3.3
+    std::vector<std::pair<std::string, content_parser>>  extra_media_types;         // 3.3
     std::vector<keyword_extension>     extra_keywords;   // custom keywords (3.5)
+    bool                      accept_other_dialects = false;     // treat foreign $schema as 2020-12
+    bool                      validate_against_metaschema = true;
+    bool                      legacy_dependencies = true;        // evaluate draft-07 `dependencies` (doc 1)
+    classification_options    classification;      // doc 4; off by default
 };
 
 class schema {                          // immutable, thread-safe, cheap to move
@@ -165,12 +167,20 @@ failed subschemas, so the evaluator can keep them on request (doc 2.5).
 
 ```cpp
 using format_checker  = std::function<bool(const json& instance)>;    // false: invalid; sees every type
-using content_checker = std::function<std::optional<std::string>(       // error message or nullopt
-    std::string_view encoding, std::string_view media_type, const json& instance)>;
+using content_decoder = std::function<std::optional<std::string>(std::string_view encoded)>;   // nullopt: invalid
+using content_parser  = std::function<std::optional<json>(std::string_view content)>;          // nullopt: invalid
 ```
 
-Built-in checkers cover every format defined in 2020-12 (doc 5). Callers can override
+Built-in checkers cover every format defined in 2020-12 (doc 5.1). Callers can override
 any built-in or add new ones.
+
+The `content*` keywords are annotations unless `content = content_mode::assert` (doc 5.5).
+A decoder turns a string in a `contentEncoding` into bytes. A parser checks bytes against a
+`contentMediaType` and returns the value `contentSchema` validates. Built in are the RFC 4648
+encodings and JSON media types, and callers can add or replace either. Doc 3.3 first
+sketched one `content_checker` callback. It was split into a decoder and a parser
+(milestone 4d) because `contentSchema` needs the decoded, parsed value, and the two halves
+combine freely: `base64` with any media type.
 
 ## 3.4 Reusable context
 
@@ -184,25 +194,59 @@ it is added.
 
 ## 3.5 Custom keywords
 
-A deliberately small extension point. Its exact shape is settled in milestone 4.
+A deliberately small extension point (milestone 4d), in `<jsonschema/custom_keyword.hpp>`:
 
 ```cpp
 struct keyword_extension {
-    std::string name;
-    std::string vocabulary_uri;      // optional; ties the keyword to $vocabulary
-    // compile: called once with the keyword's value; returns an evaluator
-    std::function<std::unique_ptr<custom_keyword>(const json& value, compile_scope&)> compile;
+    std::string name;            // not a 2020-12 keyword
+    std::string vocabulary;      // optional URI; ties the keyword to $vocabulary
+    std::function<std::unique_ptr<custom_keyword>(const keyword_compile_scope&)> compile;
 };
 
-class custom_keyword {
+class custom_keyword {           // one compiled occurrence; evaluate is called concurrently
 public:
     virtual ~custom_keyword() = default;
-    virtual bool evaluate(const json& instance, eval_scope&) const = 0;   // may report errors/annotations via scope
+    virtual bool evaluate(const json& instance, keyword_eval_scope& scope) const = 0;
 };
 ```
 
-The MNX schema's own `glyph` keyword is an example. It is plain metadata today, but
-an MNX tool could register a checker for it.
+- **Compiling.** `compile` runs once for each occurrence. `keyword_compile_scope` gives
+  the keyword's `value()`, the enclosing `schema()`, the `location()`, and `fail(message)`.
+  Any exception from `compile` becomes a `schema_error` at the keyword's location. It may
+  return nullptr when an occurrence needs no evaluation.
+- **Subschemas.** `in_place_subschema(v)` and `child_subschema(v)` compile a part of the
+  keyword's value as a schema and return a `subschema` handle.
+  - The two kinds tell the compiler how the keyword applies them. In-place subschemas join
+    the infinite-recursion check, as `allOf` does. Child subschemas apply to members or
+    items, so recursive structures through them are fine.
+  - Subschemas are discovered when compiled, so `$ref` into them and `$id`/`$anchor`
+    inside them work.
+- **Evaluating.** `keyword_eval_scope` has these operations:
+  - `fail(message)` reports an error at the current instance location. `reporting_errors()`
+    says whether that will be used.
+  - `apply(s)`, `apply(s, property)` and `apply(s, index)` evaluate a subschema on the
+    instance or on one of its members or items. Their errors and annotations are reported
+    like any subschema's. The evaluation path is the keyword followed by the subschema's
+    pointer inside the keyword's value, such as `/both/0/type`.
+  - `test(...)` does the same, but reports nothing, for keywords that choose between
+    alternatives as `anyOf` and `if` do.
+- **Annotations.** The keyword's value is still reported as an annotation, as for any
+  keyword the library does not define. A custom keyword cannot produce other annotation
+  values.
+- **`unevaluated*`.** Subschemas a custom keyword applies do not mark properties or items
+  as evaluated for `unevaluatedProperties` and `unevaluatedItems`. That needs access to the
+  evaluator's annotation frames, and can be added later without changing this API.
+- **Vocabularies.** With a `vocabulary` URI, the keyword applies only where the schema's
+  meta-schema lists that vocabulary in `$vocabulary`. Registering it also lets a
+  meta-schema require it, where an unknown required vocabulary is otherwise refused.
+  Without one, the keyword applies everywhere.
+- **Names.** Registration rejects these at `compile` time:
+  - empty names, and names registered twice;
+  - 2020-12 keyword names, including the meta-data, `content*` and superseded keywords;
+  - a 2020-12 vocabulary URI.
+
+The MNX schema's own `glyph` keyword is an example. It is plain metadata today, but an MNX
+tool could register a checker for it.
 
 ## 3.6 Migration from pboettch/json-schema-validator
 
