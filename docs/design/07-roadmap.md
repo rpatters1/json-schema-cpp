@@ -8,7 +8,9 @@
 | 1 | **Core and validation keywords** ✅ | registry, compiler, evaluator without annotations; `$ref`/`$id`/`$anchor`/`$defs`/`$dynamicRef`; all validation-vocabulary keywords; applicators except `unevaluated*`; suite gates CI through expected failures |
 | 1a | **Readiness** ✅ | doc 8 (JSON Schema v1); `definitions` and `dependencies`; `evaluation_error`; milestone 2 naming fixed in docs 2 and 3 |
 | 2 | **Annotations** ✅ | frames, `unevaluated*`, buffered error delivery and the error sink, classification (doc 4); **required suite passes, apart from format assertions and Unicode regex** (decided, open question 13) |
-| 3 | **Output and meta-schemas** | embedded meta-schemas and schema self-validation; `$vocabulary`; standard output formats; CLI; Bowtie harness |
+| 3a | **Meta-schemas** ✅ | embedded meta-schemas and schema self-validation; `$vocabulary` |
+| 3b | **Output** | standard output formats; CLI |
+| 3c | **Bowtie** | Bowtie harness |
 | 4 | **Formats and regex** | PCRE2 backend with ECMA-262 translation; all format checkers incl. IDN/IRI; content hooks; custom keywords API |
 | 5 | **mnxdom adoption** | mnxdom switches to json-schema-cpp; `IdIndexer.cpp` removed; MNX documents with stray properties are now rejected |
 | 6 | **1.0** | optional suite at target; fuzzing clean; benchmarks published; docs; Conan/vcpkg |
@@ -54,6 +56,14 @@
   | `is_valid` | 1.4 ms |
   | errors | 1.5 ms |
   | errors and classification | 3.3 ms |
+
+**Milestone 3a results:**
+- **Required suite:** 1,594 of 2,082. `vocabulary.json` now passes.
+- **Optional suite:** 152 of 206. One fewer than before: the format-assertion test with
+  a *required* format-assertion vocabulary used to pass by accident. It is now refused,
+  as the spec requires, until milestone 4.
+- The MNX schema validates against the 2020-12 meta-schema, and the comparison with
+  mnxdom's `IdIndexer` is unchanged (88 of 88).
 
 Classification is in milestone 2, not later, because it shares the annotation frames.
 Building the two together keeps them on the same retention rules.

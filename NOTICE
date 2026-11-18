@@ -1,0 +1,8 @@
+json-schema-cpp
+Copyright (c) 2026 Robert Patterson. MIT License; see LICENSE.
+
+This software includes the following third-party material.
+
+JSON Schema 2020-12 meta-schemas (src/metaschemas/2020-12/*.json), embedded in the
+library. Copyright (c) 2022 JSON Schema Specification Authors. BSD 3-clause licence;
+see src/metaschemas/LICENSE (installed as share/doc/json-schema-cpp/LICENSE.metaschemas).

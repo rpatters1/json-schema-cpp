@@ -2,19 +2,20 @@
 
 A complete JSON Schema **2020-12** validator for [nlohmann::json](https://github.com/nlohmann/json).
 
-> Status: milestone 2.
+> Status: milestone 3a.
 >
 > **Works now:**
 > - Every 2020-12 keyword, including `unevaluated*` and `$dynamicRef`.
 > - Error reporting.
 > - Annotations.
 > - Schema classification (doc 4).
+> - Meta-schema validation of schemas, with the 2020-12 meta-schemas built in.
+> - `$vocabulary`.
 >
 > **Not yet:**
 > - `format` is annotation-only.
 > - `pattern` uses an interim `std::regex` backend.
-> - Meta-schema validation, `$vocabulary` and the standard output formats are not
->   implemented.
+> - The standard output formats are not implemented.
 >
 > See [docs/design](docs/design/README.md) and the [roadmap](docs/design/07-roadmap.md).
 

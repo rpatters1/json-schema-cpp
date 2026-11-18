@@ -9,6 +9,7 @@
 
 #include "json/pointer.hpp"
 #include "keywords/keywords.hpp"
+#include "metaschemas/metaschemas.hpp"
 
 namespace jsonschema::detail {
 
@@ -133,6 +134,11 @@ std::shared_ptr<const compiled_regex> compile_scope::regex(std::string_view patt
     return result;
 }
 
+bool compile_scope::vocabulary_enabled(unsigned vocabulary) const
+{
+    return (owner_.dialect_of(*node_.resource).vocabularies & vocabulary) != 0;
+}
+
 void compile_scope::bind_dynamic_anchor(dynamic_anchor_binding& binding) const
 {
     owner_.bind_dynamic_anchor(binding);
@@ -178,7 +184,7 @@ const node* compiler::node_for(const json& schema_value)
     return &created;
 }
 
-void compiler::run()
+void compiler::drain()
 {
     for (;;) {
         while (!queue_.empty()) {
@@ -210,6 +216,11 @@ void compiler::run()
             break;
         }
     }
+}
+
+void compiler::run()
+{
+    drain();
     target_.uses_dynamic_scope = !bindings_.empty();
     target_.classification_enabled = options_.classification.enabled;
     target_.complete_walk = options_.classification.complete_walk;
@@ -286,14 +297,13 @@ void compiler::compute_schema_info()
 
 void compiler::compile_node(node& target)
 {
+    ensure_validated(target);   // before this file's own checks, for clearer errors
     const json& schema_value = *target.schema;
     if (schema_value.is_boolean()) {
         target.always_false = !schema_value.get<bool>();
         return;
     }
-    if (const schema_resource* resource = target_.schemas.resource_rooted_at(schema_value)) {
-        check_dialect(schema_value, *resource);
-    }
+    const unsigned vocabularies = dialect_of(*target.resource).vocabularies;
 
     struct compiled_keyword
     {
@@ -305,6 +315,9 @@ void compiler::compile_node(node& target)
         const std::string& name = it.key();
         const json& value = it.value();
         const keyword_definition* definition = find_keyword(name);
+        if (definition != nullptr && (definition->vocabulary & vocabularies) == 0) {
+            definition = nullptr;   // its vocabulary is not in effect: an unknown keyword
+        }
         if (definition == nullptr) {
             // Annotation keywords and unknown keywords (which 2020-12 collects as annotations)
             // are reported to an annotation sink. Identifiers, `$defs` and keywords that a
@@ -330,11 +343,25 @@ void compiler::compile_node(node& target)
     }
 }
 
-void compiler::check_dialect(const json& schema_value, const schema_resource& resource)
+const dialect& compiler::dialect_of(const schema_resource& resource)
 {
-    const auto declared = schema_value.find("$schema");
-    if (declared == schema_value.end()) {
-        return;
+    if (const auto it = dialects_.find(&resource); it != dialects_.end()) {
+        return it->second;
+    }
+    dialect d = resolve_dialect(resource);
+    return dialects_.emplace(&resource, d).first->second;
+}
+
+dialect compiler::resolve_dialect(const schema_resource& resource)
+{
+    const json& root = *resource.root;
+    const auto declared = root.is_object() ? root.find("$schema") : root.end();
+    if (!root.is_object() || declared == root.end()) {
+        // No `$schema`: the enclosing resource's dialect, else 2020-12 (doc 6.1).
+        if (resource.parent != nullptr) {
+            return dialect_of(*resource.parent);
+        }
+        return dialect{dialect::kind::standard, nullptr, vocab_all_2020_12};
     }
     const auto fail = [&](const std::string& message) {
         throw schema_error("json-schema-cpp: " + message + " (at " + resource.base + "#/$schema)");
@@ -347,25 +374,53 @@ void compiler::check_dialect(const json& schema_value, const schema_resource& re
         fail("$schema must be an absolute URI");
     }
 
-    // Follow custom meta-schemas until one declares the 2020-12 dialect. Vocabularies are
-    // not yet consulted (milestone 3), so any such meta-schema means "all of 2020-12".
+    // Follow custom meta-schemas until one declares the 2020-12 dialect. The vocabularies
+    // come from the meta-schema that `$schema` names directly (2020-12 core §8.1.2).
+    std::optional<dialect> result;
     std::unordered_set<std::string> visited;
     for (std::size_t depth = 0; depth < max_meta_schema_chain; ++depth) {
         const std::string key = resource_key(*current);
-        if (key == dialect_2020_12 || options_.accept_other_dialects) {
-            return;
+        if (key == dialect_2020_12) {
+            return result ? *result : dialect{dialect::kind::standard, nullptr, vocab_all_2020_12};
         }
-        if (std::find(other_dialects.begin(), other_dialects.end(), key) != other_dialects.end()) {
-            fail("unsupported dialect " + key + "; json-schema-cpp implements JSON Schema 2020-12 only");
-        }
-        if (!visited.insert(key).second) {
+        const bool known_other = std::find(other_dialects.begin(), other_dialects.end(), key) != other_dialects.end();
+        if (known_other || !visited.insert(key).second) {
+            if (options_.accept_other_dialects) {
+                return result ? *result : dialect{dialect::kind::foreign, nullptr, vocab_all_2020_12};
+            }
+            if (known_other) {
+                fail("unsupported dialect " + key + "; json-schema-cpp implements JSON Schema 2020-12 only");
+            }
             break;
         }
         const json* meta_schema = nullptr;
         try {
             meta_schema = &target_.schemas.resolve(*current);
         } catch (const schema_error& e) {
+            if (options_.accept_other_dialects) {
+                return dialect{dialect::kind::foreign, nullptr, vocab_all_2020_12};
+            }
             fail(std::string("unknown meta-schema: ") + e.what());
+        }
+        if (!result) {
+            result = dialect{dialect::kind::custom, meta_schema, vocab_all_2020_12};
+            if (meta_schema->is_object()) {
+                if (const auto vocabularies = meta_schema->find("$vocabulary"); vocabularies != meta_schema->end()) {
+                    if (!vocabularies->is_object()) {
+                        fail("the meta-schema's $vocabulary must be an object");
+                    }
+                    result->vocabularies = vocab_core;  // always in effect
+                    for (const auto& [vocabulary_uri, required] : vocabularies->items()) {
+                        const unsigned bit = vocabulary_bit(vocabulary_uri);
+                        if (bit != 0) {
+                            result->vocabularies |= bit;
+                        } else if (required.is_boolean() && required.get<bool>()) {
+                            fail("the meta-schema " + key + " requires the vocabulary " + vocabulary_uri +
+                                 ", which json-schema-cpp does not support");
+                        }
+                    }
+                }
+            }
         }
         const auto next = meta_schema->is_object() ? meta_schema->find("$schema") : meta_schema->end();
         if (!meta_schema->is_object() || next == meta_schema->end() || !next->is_string()) {
@@ -376,7 +431,95 @@ void compiler::check_dialect(const json& schema_value, const schema_resource& re
             fail("meta-schema " + key + " has an invalid $schema");
         }
     }
-    fail("cannot determine the dialect of meta-schema " + resource_key(*current));
+    throw schema_error("json-schema-cpp: cannot determine the dialect of meta-schema " + resource_key(*current) + " (at " +
+                       resource.base + "#/$schema)");
+}
+
+namespace {
+
+/// The 2020-12 meta-schema, compiled once per process. Immutable, so shared by all threads.
+const compiled_schema& standard_metaschema()
+{
+    static const std::unique_ptr<compiled_schema> compiled = [] {
+        compile_options options;
+        options.validate_against_metaschema = false;
+        return compile_schema(json::parse(*builtin_document(dialect_2020_12)), std::move(options));
+    }();
+    return *compiled;
+}
+
+/// Errors from validating @p document against @p meta.
+std::vector<error> metaschema_errors(const node& meta, bool track_dynamic_scope, const json& document)
+{
+    collecting_error_sink sink;
+    eval_context::settings settings;
+    settings.track_dynamic_scope = track_dynamic_scope;
+    settings.errors = &sink;
+    eval_context context(settings);
+    static_cast<void>(evaluate(meta, document, context, nullptr, edge::root));
+    context.flush_errors();
+    return std::move(sink.errors);
+}
+
+} // namespace
+
+void compiler::validate_document(const schema_resource& document)
+{
+    if (document.builtin) {
+        return;
+    }
+    const dialect& d = dialect_of(document);
+    std::vector<error> errors;
+    std::string meta_uri;
+    if (d.shape == dialect::kind::standard) {
+        const compiled_schema& meta = standard_metaschema();
+        errors = metaschema_errors(*meta.root, meta.uses_dynamic_scope, *document.root);
+        meta_uri = std::string(dialect_2020_12);
+    } else if (d.shape == dialect::kind::custom) {
+        const node* meta = node_for(*d.meta_schema);
+        if (meta == nullptr) {
+            throw schema_error("json-schema-cpp: the meta-schema of " + document.base + " is not a schema");
+        }
+        drain();
+        errors = metaschema_errors(*meta, !bindings_.empty(), *document.root);
+        meta_uri = meta->resource->base;
+    } else {
+        return;     // another draft: there is no 2020-12 meta-schema to check it against
+    }
+    if (errors.empty()) {
+        return;
+    }
+    std::string message = "json-schema-cpp: the schema " + document.base + " is not valid against its meta-schema " + meta_uri + ": ";
+    // The vocabulary meta-schemas often report the same problem once each; list it once.
+    std::vector<std::string> distinct;
+    for (const auto& e : errors) {
+        std::string line = std::string("at ") + (e.instance_location.empty() ? "the root" : e.instance_location.to_string()) + ": " + e.message;
+        if (std::find(distinct.begin(), distinct.end(), line) == distinct.end()) {
+            distinct.push_back(std::move(line));
+        }
+    }
+    constexpr std::size_t shown = 3;
+    for (std::size_t i = 0; i < distinct.size() && i < shown; ++i) {
+        message += (i == 0 ? "" : "; ") + distinct[i];
+    }
+    if (distinct.size() > shown) {
+        message += "; and " + std::to_string(distinct.size() - shown) + " more";
+    }
+    for (auto& e : errors) {
+        e.instance = nullptr;   // the schema document does not outlive the exception
+    }
+    throw schema_error(message, std::move(errors));
+}
+
+void compiler::ensure_validated(const node& n)
+{
+    const json* document = n.resource->document;
+    if (!options_.validate_against_metaschema || !validated_documents_.insert(document).second) {
+        return;
+    }
+    if (const schema_resource* root = target_.schemas.resource_rooted_at(*document)) {
+        validate_document(*root);
+    }
 }
 
 void compiler::check_cycles() const
@@ -451,13 +594,14 @@ std::unique_ptr<compiled_schema> compile_schema(json root, compile_options optio
     }
     const json& root_value = schemas.add_document(std::move(root), base);
 
-    compiler builder(*result, options);
-    result->root = builder.node_for(root_value);
-    if (result->root == nullptr) {
+    if (!root_value.is_object() && !root_value.is_boolean()) {
         throw schema_error("json-schema-cpp: a schema must be an object or a boolean");
     }
-    builder.run();
-    result->base_uri = schemas.location_of(root_value).resource->base_uri;
+    compiler builder(*result, options);
+    const schema_resource* root_resource = schemas.location_of(root_value).resource;
+    result->root = builder.node_for(root_value);
+    builder.run();      // each document is validated against its meta-schema as it is first compiled
+    result->base_uri = root_resource->base_uri;
     return result;
 }
 

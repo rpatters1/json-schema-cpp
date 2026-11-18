@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "json/pointer.hpp"
+#include "metaschemas/metaschemas.hpp"
 
 namespace jsonschema::detail {
 
@@ -53,7 +54,8 @@ bool registry::knows(const uri& absolute) const
     return find(resource_key(absolute)) != nullptr;
 }
 
-schema_resource* registry::add_resource(const uri& base, const json& root, const std::string& document_pointer)
+schema_resource* registry::add_resource(const uri& base, const json& root, const std::string& document_pointer,
+                                        const schema_resource* parent)
 {
     const uri normalized = base.without_fragment().normalized();
     std::string key = normalized.to_string();
@@ -68,6 +70,9 @@ schema_resource* registry::add_resource(const uri& base, const json& root, const
     resource.base = std::move(key);
     resource.root = &root;
     resource.document_pointer = document_pointer;
+    resource.document = current_document_;
+    resource.parent = parent;
+    resource.builtin = adding_builtin_;
     by_uri_.emplace(resource.base, &resource);
     resource_roots_.emplace(&root, &resource);
     return &resource;
@@ -93,7 +98,9 @@ const json& registry::add_document(json document, const uri& retrieval_uri)
             base = base.resolve(*reference);
         }
     }
-    schema_resource* resource = add_resource(base, root, std::string());
+    current_document_ = &root;
+    schema_resource* resource = add_resource(base, root, std::string(), nullptr);
+    document_resources_.push_back(resource);
     // The retrieval URI also identifies the document root.
     const std::string retrieval_key = resource_key(retrieval_uri);
     if (retrieval_key != resource->base) {
@@ -126,7 +133,7 @@ void registry::discover(const json& value, schema_resource* resource, const std:
             if (!reference || (reference->fragment() && !reference->fragment()->empty())) {
                 throw schema_error("json-schema-cpp: invalid $id \"" + id->get<std::string>() + "\" at " + describe(*resource, pointer));
             }
-            resource = add_resource(resource->base_uri.resolve(*reference), value, document_pointer);
+            resource = add_resource(resource->base_uri.resolve(*reference), value, document_pointer, resource);
             here.clear();
         }
     }
@@ -200,6 +207,14 @@ const json& registry::resolve(const uri& target)
     const std::string key = document_uri.to_string();
     schema_resource* resource = find(key);
     if (resource == nullptr) {
+        if (const auto text = builtin_document(key)) {
+            adding_builtin_ = true;
+            add_document(json::parse(*text), document_uri);
+            adding_builtin_ = false;
+            resource = find(key);
+        }
+    }
+    if (resource == nullptr) {
         std::optional<json> document;
         if (loader_) {
             try {
@@ -232,6 +247,7 @@ const json& registry::resolve(const uri& target)
         }
         if (!locations_.contains(value)) {
             // A location inside an unknown keyword or other non-subschema position (doc 2.3).
+            current_document_ = resource->document;
             discover(*value, resource, *fragment, resource->document_pointer + *fragment, false);
         }
         return *value;

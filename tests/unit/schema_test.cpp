@@ -100,9 +100,68 @@ TEST_CASE("schema: dialects")
                    "unsupported dialect"));
 }
 
+TEST_CASE("schema: invalid schemas fail meta-schema validation")
+{
+    try {
+        static_cast<void>(schema::compile(json::parse(R"({"$id": "https://example.com/m", "$defs": {"x": {"required": "a"}}})")));
+        FAIL("expected schema_error");
+    } catch (const schema_error& e) {
+        const std::string what = e.what();
+        CHECK(contains(what, "https://example.com/m is not valid against its meta-schema https://json-schema.org/draft/2020-12/schema"));
+        CHECK(contains(what, "at /$defs/x/required: expected array, got string"));
+        REQUIRE(e.metaschema_errors().size() == 1);
+        CHECK(e.metaschema_errors()[0].instance_location.to_string() == "/$defs/x/required");
+        CHECK(e.metaschema_errors()[0].instance == nullptr);
+    }
+
+    // Referenced documents are validated too.
+    compile_options options;
+    options.resources.push_back({"https://example.com/bad", json::parse(R"({"minLength": -1})")});
+    CHECK(contains(compile_error(json::parse(R"({"$ref": "https://example.com/bad"})"), options),
+                   "https://example.com/bad is not valid against its meta-schema"));
+    // Unreferenced ones are not.
+    CHECK(compile_error(json::object(), options).empty());
+
+    // `$ref` to the meta-schema itself works without a loader: it is built in.
+    const auto meta = schema::compile(json::parse(R"({"$ref": "https://json-schema.org/draft/2020-12/schema"})"));
+    CHECK(meta.is_valid(json::parse(R"({"type": "string"})")));
+    CHECK_FALSE(meta.is_valid(json::parse(R"({"type": "strin"})")));
+}
+
+TEST_CASE("schema: $vocabulary")
+{
+    compile_options options;
+    options.resources.push_back({"https://example.com/no-validation", json::parse(R"({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "https://example.com/no-validation",
+        "$vocabulary": {"https://json-schema.org/draft/2020-12/vocab/core": true,
+                        "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+                        "https://example.com/vocab/optional-extra": false},
+        "allOf": [{"$ref": "https://json-schema.org/draft/2020-12/meta/core"},
+                  {"$ref": "https://json-schema.org/draft/2020-12/meta/applicator"}]
+    })")});
+    const auto s = schema::compile(json::parse(R"({
+        "$schema": "https://example.com/no-validation",
+        "properties": {"n": {"minimum": 10}},
+        "type": "string"
+    })"),
+                                   options);
+    // Validation keywords are unknown here, so only the applicators apply.
+    CHECK(s.is_valid(json::parse(R"({"n": 1})")));
+
+    options.resources.push_back({"https://example.com/needs-extra", json::parse(R"({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "https://example.com/needs-extra",
+        "$vocabulary": {"https://json-schema.org/draft/2020-12/vocab/core": true, "https://example.com/vocab/extra": true}
+    })")});
+    CHECK(contains(compile_error(json::parse(R"({"$schema": "https://example.com/needs-extra"})"), options),
+                   "requires the vocabulary https://example.com/vocab/extra"));
+}
+
 TEST_CASE("schema: invalid keyword values are compile errors")
 {
-    const auto error_for = [](const char* text) { return compile_error(json::parse(text)); };
+    // The compiler's own checks, for when meta-schema validation is off.
+    const auto error_for = [](const char* text) { return compile_error(json::parse(text), {.validate_against_metaschema = false}); };
     CHECK(contains(error_for(R"({"type": "strin"})"), "#/type"));
     CHECK(contains(error_for(R"({"type": ["string", "string"]})"), "unique"));
     CHECK(contains(error_for(R"({"minLength": -1})"), "non-negative integer"));
@@ -226,9 +285,12 @@ TEST_CASE("schema: legacy dependencies")
     CHECK(strict.is_valid(json::parse(R"({"credit": 1})")));
     CHECK(strict.is_valid(json::parse(R"({"debit": 1})")));
 
-    CHECK(contains(compile_error(json::parse(R"({"dependencies": {"a": [1]}})")), "only strings"));
-    CHECK(contains(compile_error(json::parse(R"({"dependencies": []})")), "#/dependencies"));
-    CHECK(compile_error(json::parse(R"({"dependencies": []})"), {.legacy_dependencies = false}).empty());
+    const compile_options unchecked{.validate_against_metaschema = false};
+    CHECK(contains(compile_error(json::parse(R"({"dependencies": {"a": [1]}})"), unchecked), "only strings"));
+    CHECK(contains(compile_error(json::parse(R"({"dependencies": []})"), unchecked), "#/dependencies"));
+    CHECK(compile_error(json::parse(R"({"dependencies": []})"), {.validate_against_metaschema = false, .legacy_dependencies = false}).empty());
+    // The 2020-12 meta-schema still describes `dependencies`, so it checks the shape either way.
+    CHECK(contains(compile_error(json::parse(R"({"dependencies": []})"), {.legacy_dependencies = false}), "not valid against its meta-schema"));
 
     // An identifier inside a schema-form dependency is discovered.
     const auto nested = schema::compile(json::parse(R"({
