@@ -82,6 +82,7 @@ struct expected_failure
     std::optional<std::string> test_case;   // nullopt: every case in the file
     std::optional<std::string> test;        // nullopt: every test in the case
     std::string reason;
+    bool varies = false;                    // outcome differs by platform; passing is not an error
     mutable bool used = false;
 };
 
@@ -102,6 +103,7 @@ std::vector<expected_failure> load_expected_failures(const fs::path& path)
         if (entry.contains("case")) item.test_case = entry["case"].get<std::string>();
         if (entry.contains("test")) item.test = entry["test"].get<std::string>();
         item.reason = entry.at("reason").get<std::string>();
+        item.varies = entry.value("varies", false);
         result.push_back(std::move(item));
     }
     return result;
@@ -208,7 +210,7 @@ file_result run_file(const fs::path& tests_dir, const std::string& relative, con
             const std::string label = "[" + case_description + "] " + test_description;
             if (outcome.empty()) {
                 ++result.passed;
-                if (listed) {
+                if (listed && !listed->varies) {
                     ++result.unexpected_passes;
                     result.problems.push_back(label + ": passed, but is listed as an expected failure (" + listed->reason + ")");
                 }

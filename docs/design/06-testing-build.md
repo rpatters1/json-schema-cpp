@@ -32,7 +32,8 @@ totals, which CI posts as the job summary.
 file, an optional case description, an optional test description, and a reason.
 Leaving out the case or test means "all" of them. The runner fails if a listed test
 passes, and, on a full run, if an entry matches nothing. That keeps the list from
-going stale. Each reason names the milestone that removes it, or says "permanent".
+going stale. Each reason names the milestone that removes it, or says "permanent". An entry with `"varies": true` may pass or fail; it is for outcomes that
+differ by platform, such as the interim `std::regex` backend on libstdc++ versus libc++.
 `--emit-failures` prints the failing tests that are not yet listed, in the file's
 entry format, so the list is regenerated rather than written by hand.
 

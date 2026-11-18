@@ -1,5 +1,5 @@
 {
-  "description": "Tests from JSON-Schema-Test-Suite that are known to fail, with the reason. Each entry names a file, optionally a case (test-case description) and optionally a test (test description); omitted fields match everything. Regenerate candidates with jsonschema_suite_runner --emit-failures.",
+  "description": "Tests from JSON-Schema-Test-Suite that are known to fail, with the reason. Each entry names a file, optionally a case (test-case description) and optionally a test (test description); omitted fields match everything. \"varies\": true marks an outcome that differs by platform (for example between standard-library regex implementations): such a test may pass or fail. Regenerate candidates with jsonschema_suite_runner --emit-failures.",
   "entries": [
     {
       "file": "dynamicRef.json",
@@ -3021,6 +3021,20 @@
       "case": "ECMA 262 \\s matches whitespace",
       "test": "zero-width whitespace matches",
       "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+    },
+    {
+      "file": "optional/ecmascript-regex.json",
+      "case": "ECMA 262 regex escapes control codes with \\c and lower letter",
+      "test": "matches",
+      "reason": "milestone 4: libstdc++ std::regex does not support \\cX escapes (libc++ does)",
+      "varies": true
+    },
+    {
+      "file": "optional/ecmascript-regex.json",
+      "case": "ECMA 262 regex escapes control codes with \\c and upper letter",
+      "test": "matches",
+      "reason": "milestone 4: libstdc++ std::regex does not support \\cX escapes (libc++ does)",
+      "varies": true
     },
     {
       "file": "optional/ecmascript-regex.json",
