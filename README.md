@@ -2,7 +2,7 @@
 
 A complete JSON Schema **2020-12** validator for [nlohmann::json](https://github.com/nlohmann/json).
 
-> Status: milestone 3b.
+> Status: milestone 4a.
 >
 > **Works now:**
 > - Every 2020-12 keyword, including `unevaluated*` and `$dynamicRef`.
@@ -12,10 +12,11 @@ A complete JSON Schema **2020-12** validator for [nlohmann::json](https://github
 > - Meta-schema validation of schemas, with the 2020-12 meta-schemas built in.
 > - `$vocabulary`.
 > - The standard output formats `flag`, `basic` and `detailed`, and a command-line tool.
+> - ECMA-262 regular expressions with Unicode support (`\p{…}`), using the vendored SRELL
+>   engine.
 >
 > **Not yet:**
 > - `format` is annotation-only.
-> - `pattern` uses an interim `std::regex` backend.
 >
 > See [docs/design](docs/design/README.md) and the [roadmap](docs/design/07-roadmap.md).
 

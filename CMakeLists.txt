@@ -17,6 +17,9 @@ option(JSONSCHEMA_BUILD_CLI "Build the json-schema-cpp command-line tool" ${JSON
 option(JSONSCHEMA_BUILD_BOWTIE "Build the Bowtie harness (tools/bowtie)" ${JSONSCHEMA_BUILD_TESTS})
 option(JSONSCHEMA_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(JSONSCHEMA_USE_SYSTEM_NLOHMANN_JSON "Require an installed nlohmann_json instead of fetching it if missing" OFF)
+set(JSONSCHEMA_REGEX "srell" CACHE STRING "Regex backend for pattern/patternProperties: srell (ECMA-262, default) or std (std::regex)")
+set_property(CACHE JSONSCHEMA_REGEX PROPERTY STRINGS srell std)
+option(JSONSCHEMA_USE_SYSTEM_SRELL "Use an installed SRELL (e.g. vcpkg) instead of the vendored copy" OFF)
 set(JSONSCHEMA_SANITIZE "" CACHE STRING "Comma-separated sanitizers for this project's targets (e.g. address,undefined)")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")

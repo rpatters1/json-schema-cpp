@@ -48,6 +48,19 @@ target_include_directories(jsonschema_objects
         ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(jsonschema_objects PUBLIC nlohmann_json::nlohmann_json)
 
+# The regex backend is private to the library: no public header includes it (doc 5.2).
+if(JSONSCHEMA_REGEX STREQUAL "srell")
+    if(JSONSCHEMA_USE_SYSTEM_SRELL)
+        find_path(JSONSCHEMA_SRELL_INCLUDE_DIR srell.hpp REQUIRED)
+    else()
+        set(JSONSCHEMA_SRELL_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/third_party/srell)
+    endif()
+    target_include_directories(jsonschema_objects SYSTEM PRIVATE ${JSONSCHEMA_SRELL_INCLUDE_DIR})
+    target_compile_definitions(jsonschema_objects PRIVATE JSONSCHEMA_REGEX_SRELL)
+elseif(NOT JSONSCHEMA_REGEX STREQUAL "std")
+    message(FATAL_ERROR "JSONSCHEMA_REGEX must be srell or std, not ${JSONSCHEMA_REGEX}")
+endif()
+
 set_target_properties(jsonschema_objects PROPERTIES
     CXX_EXTENSIONS OFF
     CXX_VISIBILITY_PRESET hidden

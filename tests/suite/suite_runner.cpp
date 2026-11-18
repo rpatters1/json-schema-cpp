@@ -5,7 +5,7 @@
 // json-schema-cpp for the 2020-12 dialect.
 //
 // Usage:
-//   jsonschema_suite_runner --tests-dir DIR [--expected-failures FILE]
+//   jsonschema_suite_runner --tests-dir DIR [--expected-failures FILE] [--regex-backend srell|std]
 //                           [--verbose] [--markdown] [--emit-failures] [FILE...]
 //
 // FILE paths are relative to --tests-dir (e.g. "ref.json", "optional/bignum.json").
@@ -84,8 +84,11 @@ struct expected_failure
     std::optional<std::string> test;        // nullopt: every test in the case
     std::string reason;
     bool varies = false;                    // outcome differs by platform; passing is not an error
+    std::optional<std::string> regex;       // applies only with this regex backend ("std" or "srell")
     mutable bool used = false;
 };
+
+std::string regex_backend = "srell";   // --regex-backend
 
 std::vector<expected_failure> load_expected_failures(const fs::path& path)
 {
@@ -104,7 +107,11 @@ std::vector<expected_failure> load_expected_failures(const fs::path& path)
         if (entry.contains("case")) item.test_case = entry["case"].get<std::string>();
         if (entry.contains("test")) item.test = entry["test"].get<std::string>();
         item.reason = entry.at("reason").get<std::string>();
+        if (entry.contains("regex") && entry["regex"].get<std::string>() != regex_backend) {
+            continue;   // for another regex backend
+        }
         item.varies = entry.value("varies", false);
+        if (entry.contains("regex")) item.regex = entry["regex"].get<std::string>();
         result.push_back(std::move(item));
     }
     return result;
@@ -302,6 +309,8 @@ int main(int argc, char** argv)
             verbose = true;
         } else if (arg == "--markdown") {
             markdown = true;
+        } else if (arg == "--regex-backend" && i + 1 < argc) {
+            regex_backend = argv[++i];
         } else if (arg == "--emit-failures") {
             emit_failures = true;
         } else if (arg.starts_with("--")) {

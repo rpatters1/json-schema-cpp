@@ -11,7 +11,10 @@
 | 3a | **Meta-schemas** ✅ | embedded meta-schemas and schema self-validation; `$vocabulary` |
 | 3b | **Output** ✅ | standard output formats (flag, basic, detailed); CLI |
 | 3c | **Bowtie** ✅ | Bowtie harness, run locally (`tools/bowtie`). Publishing to bowtie.report waits until 1.0 is code-complete |
-| 4 | **Formats and regex** | PCRE2 backend with ECMA-262 translation; all format checkers incl. IDN/IRI; content hooks; custom keywords API |
+| 4a | **Regex** ✅ | SRELL backend (vendored), `std::regex` as an option |
+| 4b | **Formats** | format checkers and assertion mode; format-assertion vocabulary |
+| 4c | **IDNA** | Unicode tables (generated and committed); `idn-hostname`, `idn-email` |
+| 4d | **Extensions** | content hooks; custom keywords API |
 | 5 | **mnxdom adoption** | mnxdom switches to json-schema-cpp; `IdIndexer.cpp` removed; MNX documents with stray properties are now rejected |
 | 6 | **1.0** | optional suite at target; fuzzing clean; benchmarks published; docs; Conan/vcpkg |
 
@@ -57,6 +60,12 @@
   | errors | 1.5 ms |
   | errors and classification | 3.3 ms |
 
+**Milestone 4a results:**
+- **Required suite:** 1,603 of 2,082. Every remaining required failure (479) is a
+  format assertion, which is milestone 4b.
+- **Optional suite:** 177 of 206. All of `ecmascript-regex` (74) and `non-bmp-regex`
+  (12) pass.
+
 **Milestone 3c results:** Bowtie 2026.11.3, run locally against the harness image.
 - **Validation suite (2020-12):** 409 cases, 0 failed, 9 errored. The 9 are the
   `\p{…}` Unicode-regex cases, refused by the interim regex backend until milestone 4.
@@ -80,8 +89,8 @@ doesn't need formats, regex beyond simple `patternProperties`, or the output for
 
 1. ~~Naming style~~: decided, snake_case.
 2. ~~Minimum C++ standard~~: decided. C++20 throughout (doc 1).
-3. **Regex.** Translate ECMA-262 to PCRE2 (proposed), or write a dedicated ECMA-262
-   engine?
+3. ~~Regex~~: decided. SRELL, vendored, is the default backend, and `std::regex`
+   remains a build option (doc 5.2).
 4. ~~Unclassified locations on invalid documents~~: decided. Recovery policy plus
    complete walk (doc 4.6), so mnxdom needs no walk of its own. Still open: whether
    the default discriminator rule is right for schemas other than MNX. Test it against

@@ -41,6 +41,12 @@ jobs:
             cxx: g++
             config: Release
             extra: -DBUILD_SHARED_LIBS=ON
+          - name: Linux GCC std::regex
+            os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            config: Release
+            extra: -DJSONSCHEMA_REGEX=std
           - name: Linux Clang ASan+UBSan
             os: ubuntu-latest
             cc: clang

@@ -1,5 +1,5 @@
 {
-  "description": "Tests from JSON-Schema-Test-Suite that are known to fail, with the reason. Each entry names a file, optionally a case (test-case description) and optionally a test (test description); omitted fields match everything. \"varies\": true marks an outcome that differs by platform (for example between standard-library regex implementations): such a test may pass or fail. Regenerate candidates with jsonschema_suite_runner --emit-failures.",
+  "description": "Tests from JSON-Schema-Test-Suite that are known to fail, with the reason. Each entry names a file, optionally a case (test-case description) and optionally a test (test description); omitted fields match everything. \"regex\": \"std\" limits an entry to builds with the std::regex backend (JSONSCHEMA_REGEX=std). \"varies\": true marks an outcome that differs by platform (for example between standard-library regex implementations): such a test may pass or fail. Regenerate candidates with jsonschema_suite_runner --emit-failures.",
   "entries": [
     {
       "file": "format-date-time.json",
@@ -2882,83 +2882,97 @@
       "file": "optional/ecmascript-regex.json",
       "case": "ECMA 262 \\D matches everything but ascii digits",
       "test": "NKO DIGIT ZERO (as \\u escape) matches",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "ECMA 262 \\D matches everything but ascii digits",
       "test": "NKO DIGIT ZERO matches (unlike e.g. Python)",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "ECMA 262 \\S matches everything but whitespace",
       "test": "Non-whitespace matches",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "ECMA 262 \\W matches everything but ascii letters",
       "test": "latin-1 e-acute matches (unlike e.g. Python)",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "ECMA 262 \\s matches whitespace",
       "test": "EM SPACE matches (Space_Separator)",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "ECMA 262 \\s matches whitespace",
       "test": "latin-1 non-breaking-space matches",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "ECMA 262 \\s matches whitespace",
       "test": "paragraph separator matches (line terminator)",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "ECMA 262 \\s matches whitespace",
       "test": "zero-width whitespace matches",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "ECMA 262 regex escapes control codes with \\c and lower letter",
       "test": "matches",
-      "reason": "milestone 4: libstdc++ std::regex does not support \\cX escapes (libc++ does)",
-      "varies": true
+      "reason": "std::regex backend only: libstdc++ std::regex does not support \\cX escapes (libc++ does)",
+      "varies": true,
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "ECMA 262 regex escapes control codes with \\c and upper letter",
       "test": "matches",
-      "reason": "milestone 4: libstdc++ std::regex does not support \\cX escapes (libc++ does)",
-      "varies": true
+      "reason": "std::regex backend only: libstdc++ std::regex does not support \\cX escapes (libc++ does)",
+      "varies": true,
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "pattern with non-ASCII digits",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "patternProperties with non-ASCII digits",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "patterns always use unicode semantics with pattern",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/ecmascript-regex.json",
       "case": "patterns always use unicode semantics with patternProperties",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/format-assertion.json",
@@ -3045,34 +3059,40 @@
       "file": "optional/non-bmp-regex.json",
       "case": "Proper UTF-16 surrogate pair handling: pattern",
       "test": "matches empty",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/non-bmp-regex.json",
       "case": "Proper UTF-16 surrogate pair handling: pattern",
       "test": "matches two",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "optional/non-bmp-regex.json",
       "case": "Proper UTF-16 surrogate pair handling: patternProperties",
       "test": "doesn't match two",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "pattern.json",
       "case": "pattern with Unicode property escape",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "pattern.json",
       "case": "pattern with Unicode property escape requires unicode mode",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     },
     {
       "file": "patternProperties.json",
       "case": "patternProperties with Unicode property escape",
-      "reason": "milestone 4: ECMA-262 regex with Unicode semantics (interim backend is std::regex)"
+      "reason": "std::regex backend only: no Unicode semantics or \\\\p{...}",
+      "regex": "std"
     }
   ]
 }

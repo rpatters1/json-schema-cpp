@@ -92,6 +92,7 @@ few published schema/instance pairs, compared against the predecessor library.
 ## 6.3 CI and release
 
 - GitHub Actions: Linux (GCC, Clang), macOS (AppleClang, built with `CMAKE_OSX_DEPLOYMENT_TARGET=10.15`), Windows (MSVC).
+  One Linux job builds with `JSONSCHEMA_REGEX=std`, so the `std::regex` option keeps working.
   Sanitizers (ASan, UBSan) on Linux.
 - Every build-and-test job runs unit and suite tests. A separate job posts the suite
   table as the job summary; the compliance badge will be generated from it.
