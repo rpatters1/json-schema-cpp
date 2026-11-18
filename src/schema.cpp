@@ -1,27 +1,35 @@
 // Copyright (c) 2026 Robert Patterson. MIT License; see LICENSE.
 #include <jsonschema/schema.hpp>
 
-namespace jsonschema {
+#include "compiler.hpp"
+#include "node.hpp"
 
-namespace detail {
-class compiled_schema
-{
-};
-} // namespace detail
+namespace jsonschema {
 
 schema::schema(std::unique_ptr<detail::compiled_schema> impl) : impl_(std::move(impl)) {}
 schema::schema(schema&&) noexcept = default;
 schema& schema::operator=(schema&&) noexcept = default;
 schema::~schema() = default;
 
-schema schema::compile(const json& /*root*/, compile_options /*options*/)
+schema schema::compile(const json& root, compile_options options)
 {
-    throw schema_error("json-schema-cpp: schema compilation is not implemented yet (milestone 1)");
+    return schema(detail::compile_schema(root, std::move(options)));
 }
 
-bool schema::is_valid(const json& /*instance*/) const
+schema schema::compile(json&& root, compile_options options)
 {
-    throw schema_error("json-schema-cpp: validation is not implemented yet (milestone 1)");
+    return schema(detail::compile_schema(std::move(root), std::move(options)));
+}
+
+bool schema::is_valid(const json& instance) const
+{
+    detail::eval_context context(impl_->uses_dynamic_scope);
+    return detail::evaluate(*impl_->root, instance, context);
+}
+
+const uri& schema::base_uri() const noexcept
+{
+    return impl_->base_uri;
 }
 
 } // namespace jsonschema

@@ -32,7 +32,13 @@ totals, which CI posts as the job summary.
 file, an optional case description, an optional test description, and a reason.
 Leaving out the case or test means "all" of them. The runner fails if a listed test
 passes, and, on a full run, if an entry matches nothing. That keeps the list from
-going stale.
+going stale. Each reason names the milestone that removes it, or says "permanent".
+`--emit-failures` prints the failing tests that are not yet listed, in the file's
+entry format, so the list is regenerated rather than written by hand.
+
+With that list in place, every CI build-and-test job runs the suite as part of
+`ctest` (since milestone 1). A regression in any file fails the build on every
+platform, including the sanitizer job.
 
 **Unit tests** (doctest; the suite runner uses it too):
 - `Uri`: parse, resolve and normalize, including the RFC 3986 §5.4 tables.
@@ -80,7 +86,8 @@ few published schema/instance pairs, compared against the predecessor library.
 
 - GitHub Actions: Linux (GCC, Clang), macOS (AppleClang, built with `CMAKE_OSX_DEPLOYMENT_TARGET=10.15`), Windows (MSVC).
   Sanitizers (ASan, UBSan) on Linux.
-- Suite results posted as a job summary, with the compliance badge generated from it.
+- Every build-and-test job runs unit and suite tests. A separate job posts the suite
+  table as the job summary; the compliance badge will be generated from it.
 - Release on tag `vX.Y.Z`: GitHub release, source archive, then Conan Center and
   vcpkg ports once stable (1.0).
 - Semantic versioning. Before 1.0, minor releases may change the API.

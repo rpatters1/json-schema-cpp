@@ -64,12 +64,27 @@ struct Node {
 **Keyword order** inside a node is fixed, so that annotations exist before the
 keywords that read them:
 
-1. `$ref`, `$dynamicRef`
-2. in-place applicators: `allOf`, `anyOf`, `oneOf`, `not`, `if`/`then`/`else`, `dependentSchemas`
-3. child applicators: `properties`, `patternProperties`, `additionalProperties`,
+1. assertions (`type`, `enum`, numeric/string/array/object limits, `required`, ...)
+2. `$ref`, `$dynamicRef`
+3. in-place applicators: `allOf`, `anyOf`, `oneOf`, `not`, `if`/`then`/`else`, `dependentSchemas`
+4. child applicators: `properties`, `patternProperties`, `additionalProperties`,
    `prefixItems`, `items`, `contains`, `propertyNames`
-4. assertions (`type`, `enum`, numeric/string/array/object limits, `required`, ...)
 5. `unevaluatedProperties`, `unevaluatedItems`
+
+Assertions produce no annotations that other keywords read, so they go first: the
+fast path fails on a wrong `type` before descending, and a node's own errors come
+before its children's (doc 3.2). Only `unevaluated*` has to be last.
+
+**Keyword values are checked** when compiled (wrong types, negative limits, invalid
+regexes, duplicate `type` names), so a malformed schema fails at compile time even
+before meta-schema validation exists (milestone 3).
+
+**Reference cycles.** A cycle made only of in-place edges (`$ref`, `allOf`, `anyOf`,
+`oneOf`, `not`, `if`/`then`/`else`, `dependentSchemas`) would apply a schema to the
+same instance location forever, so the compiler rejects it. `{"$ref": "#"}` is the
+simplest case. Cycles through child applicators consume the instance and are fine.
+`$dynamicRef` targets depend on the dynamic scope, so its cycles are caught at run
+time instead: re-entering the same `$dynamicRef` at the same instance location throws.
 
 **References** are resolved at compile time into `Node*`. Cycles are allowed, because
 the graph is not a tree. `$dynamicRef` keeps its initial target and anchor name and
@@ -141,8 +156,11 @@ At a `$dynamicRef`:
 3. Otherwise walk the dynamic scope from outermost to innermost. Use the first
    resource that defines a `$dynamicAnchor` of that name.
 
-The outcome depends on runtime scope, so each `(dynamicRef keyword, resource)` pair is
-looked up once and cached in a small table on the context.
+The candidates are found at compile time: for each `$dynamicRef` whose initial target
+is a dynamic anchor, the compiler records the node for that anchor name in every
+registered resource. At run time the evaluator only walks the scope and looks each
+resource up in that list. The scope is tracked only when the schema has such a
+`$dynamicRef`.
 
 ## 2.7 Memory and threading
 

@@ -5,10 +5,14 @@
 //
 // Usage:
 //   jsonschema_suite_runner --tests-dir DIR [--expected-failures FILE]
-//                           [--verbose] [--markdown] [FILE...]
+//                           [--verbose] [--markdown] [--emit-failures] [FILE...]
 //
 // FILE paths are relative to --tests-dir (e.g. "ref.json", "optional/bignum.json").
 // With no FILE arguments, every file in DIR and DIR/optional is run.
+//
+// --emit-failures prints, instead of the report, a JSON array of expected-failures
+// entries for every failing test that is not already listed (with an empty "reason"),
+// as a starting point for updating expected-failures.json.
 //
 // Exit status: 0 if every result matched expectations, 1 if any did not,
 // 77 if none of the named files contains a test case that applies to 2020-12, 2 on usage errors.
@@ -125,6 +129,7 @@ struct file_result
     std::size_t expected_failures = 0; // failed or errored, and listed as expected
     std::size_t unexpected_passes = 0; // passed, but listed as expected to fail
     std::vector<std::string> problems; // unexpected outcomes, for the log
+    json unlisted_failures = json::array(); // expected-failures entries for --emit-failures
 
     [[nodiscard]] bool ok() const { return problems.empty(); }
 };
@@ -213,6 +218,8 @@ file_result run_file(const fs::path& tests_dir, const std::string& relative, con
                     ++result.expected_failures;
                 } else {
                     result.problems.push_back(label + ": " + outcome);
+                    result.unlisted_failures.push_back(
+                        {{"file", relative}, {"case", case_description}, {"test", test_description}, {"reason", ""}});
                 }
             }
         }
@@ -279,6 +286,7 @@ int main(int argc, char** argv)
     fs::path expected_failures_path;
     bool verbose = false;
     bool markdown = false;
+    bool emit_failures = false;
     std::vector<std::string> files;
 
     for (int i = 1; i < argc; ++i) {
@@ -291,6 +299,8 @@ int main(int argc, char** argv)
             verbose = true;
         } else if (arg == "--markdown") {
             markdown = true;
+        } else if (arg == "--emit-failures") {
+            emit_failures = true;
         } else if (arg.starts_with("--")) {
             std::cerr << "unknown option " << arg << "\n";
             return exit_usage;
@@ -299,7 +309,7 @@ int main(int argc, char** argv)
         }
     }
     if (tests_dir.empty()) {
-        std::cerr << "usage: " << argv[0] << " --tests-dir DIR [--expected-failures FILE] [--verbose] [--markdown] [FILE...]\n";
+        std::cerr << "usage: " << argv[0] << " --tests-dir DIR [--expected-failures FILE] [--verbose] [--markdown] [--emit-failures] [FILE...]\n";
         return exit_usage;
     }
 
@@ -329,7 +339,7 @@ int main(int argc, char** argv)
         }
         any_applicable = any_applicable || r.cases > 0;
         all_ok = all_ok && r.ok();
-        if (!markdown && (r.cases > 0 || !r.ok())) {
+        if (!markdown && !emit_failures && (r.cases > 0 || !r.ok())) {
             std::cout << r.file << ": " << r.tests << " tests in " << r.cases << " cases: " << r.passed << " passed, " << r.failed
                       << " failed, " << r.errored << " errored (" << r.expected_failures << " expected failures, "
                       << r.unexpected_passes << " unexpected passes)\n";
@@ -342,6 +352,17 @@ int main(int argc, char** argv)
             }
         }
         results.push_back(std::move(r));
+    }
+
+    if (emit_failures) {
+        json all = json::array();
+        for (const auto& r : results) {
+            for (const auto& entry : r.unlisted_failures) {
+                all.push_back(entry);
+            }
+        }
+        std::cout << all.dump(2) << "\n";
+        return exit_ok;
     }
 
     // Entries that matched nothing are stale only when the whole suite was run.

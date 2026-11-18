@@ -78,8 +78,10 @@ jobs:
       - name: Build
         run: cmake --build build --config ${{ matrix.config }} --parallel
 
-      - name: Unit tests
-        run: ctest --test-dir build -C ${{ matrix.config }} -L unit --output-on-failure
+      # Unit tests plus one test per JSON-Schema-Test-Suite file. Suite tests fail on any
+      # result not recorded in tests/suite/expected-failures.json, so they gate regressions.
+      - name: Tests
+        run: ctest --test-dir build -C ${{ matrix.config }} --output-on-failure
 
   test-suite:
     name: JSON-Schema-Test-Suite report
@@ -95,10 +97,10 @@ jobs:
       - name: Build
         run: cmake --build build --parallel --target jsonschema_suite_runner
 
-      # Informational until milestone 2, when the required suite is expected to pass.
-      # Then remove continue-on-error so the suite gates merges.
+      # A summary table for the run page. The build-and-test jobs are the gate; this step
+      # fails only if an outcome differs from tests/suite/expected-failures.json, which
+      # includes a stale-entry check that per-file runs cannot do.
       - name: Run suite
-        continue-on-error: true
         run: >
           ./build/tests/jsonschema_suite_runner
           --tests-dir third_party/JSON-Schema-Test-Suite/validation/tests
