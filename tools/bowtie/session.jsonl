@@ -1,0 +1,7 @@
+{"cmd": "start", "version": 1}
+{"cmd": "dialect", "dialect": "https://json-schema.org/draft/2020-12/schema"}
+{"cmd": "dialect", "dialect": "http://json-schema.org/draft-07/schema#"}
+{"cmd": "run", "seq": 1, "output": "flag", "case": {"description": "ref to registry", "schema": {"$ref": "http://example.com/int.json"}, "registry": {"http://example.com/int.json": {"type": "integer"}}, "tests": [{"description": "int", "instance": 1}, {"description": "string", "instance": "a"}]}}
+{"cmd": "run", "seq": [2, "opaque"], "output": "annotations", "case": {"description": "title", "schema": {"$id": "https://example.com/t", "title": "T"}, "tests": [{"description": "any", "instance": 0}]}}
+{"cmd": "run", "seq": 3, "output": "flag", "case": {"description": "bad ref", "schema": {"$id": "https://example.com/bad", "$ref": "#/nowhere"}, "tests": [{"description": "x", "instance": 0}]}}
+{"cmd": "stop"}
