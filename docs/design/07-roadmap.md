@@ -4,7 +4,7 @@
 
 | # | Milestone | Done when |
 |---|-----------|-----------|
-| 0 | **Skeleton** | CMake, CI matrix, suite submodule and runner (everything failing), JSON access layer, `Uri` with tests |
+| 0 | **Skeleton** ✅ | CMake, CI matrix, suite submodule and runner (everything failing), JSON access layer, `Uri` with tests |
 | 1 | **Core and validation keywords** | registry, compiler, evaluator without annotations; `$ref`/`$id`/`$anchor`/`$defs`; all validation-vocabulary keywords; applicators except `unevaluated*` |
 | 2 | **Annotations** | frames, `unevaluated*`, `$dynamicRef`, buffered error delivery, classification (doc 4); **required suite passes 100%** |
 | 3 | **Output and meta-schemas** | embedded meta-schemas and schema self-validation; `$vocabulary`; standard output formats; CLI; Bowtie harness |

@@ -1,0 +1,7 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(nlohmann_json @JSONSCHEMA_NLOHMANN_JSON_MIN_VERSION@ CONFIG)
+
+include("${CMAKE_CURRENT_LIST_DIR}/jsonschemaTargets.cmake")
+check_required_components(jsonschema)
