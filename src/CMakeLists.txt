@@ -36,6 +36,8 @@ add_library(jsonschema_objects OBJECT
     regex.cpp
     registry.cpp
     schema.cpp
+    unicode/idna.cpp
+    unicode/unicode.cpp
     uri.cpp
 )
 

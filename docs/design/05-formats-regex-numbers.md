@@ -14,14 +14,15 @@ Either way, `format` is still reported as an annotation. In assertion mode:
   ones.
 - Built-in checkers accept non-string instances. Custom checkers see every type.
 
-The checkers are in `src/formats.cpp`, written for this library (milestone 4b):
+The checkers are in `src/formats.cpp` and `src/unicode/`, written for this library
+(milestones 4b and 4c):
 
 | Format | Standard | How |
 |--------|----------|-----|
 | `date` `time` `date-time` | RFC 3339 | The offset is required. A leap second (`:60`) is valid only at 23:59 UTC after applying the offset. Lowercase `t`/`z` are allowed. |
 | `duration` | RFC 3339 Appendix A | Nested components (`P1Y2D` is invalid), whole numbers, and weeks stand alone. |
 | `email` | RFC 5321 Mailbox | Dot-string or quoted local part (at most 64 octets); a domain, or an address literal (IPv4, `IPv6:`, general). |
-| `hostname` | RFC 1123, plus RFC 5891 §4.2.3.1 | LDH labels of 1–63 characters, 253 in all. "--" in positions 3–4 is allowed only for `xn--`. Validating the decoded A-label is milestone 4c. |
+| `hostname` | RFC 1123, plus RFC 5890 A-labels | LDH labels of 1–63 characters, 253 in all. A label starting `xn--` (any case) must be a valid A-label: canonical Punycode that decodes to a valid U-label, as for `idn-hostname`, with the Bidi rule across the name. Other labels with "--" in positions 3–4 are allowed. |
 | `ipv4` `ipv6` | RFC 3986 §3.2.2 | The `uri` parser's own address grammar. |
 | `uri` `uri-reference` | RFC 3986 | The `uri` parser: absolute, or any reference. |
 | `iri` `iri-reference` | RFC 3987 | Each non-ASCII character must be `ucschar` (or `iprivate` in the query). It is percent-encoded, and the result is parsed as a URI. |
@@ -29,7 +30,8 @@ The checkers are in `src/formats.cpp`, written for this library (milestone 4b):
 | `uri-template` | RFC 6570 | Expressions with operators, variable lists, prefix and explode modifiers. Apostrophes are allowed in literals, as the suite expects. |
 | `json-pointer` `relative-json-pointer` | RFC 6901, draft-handrews-relative-json-pointer-01 | |
 | `regex` | ECMA-262 | Compiles with the regex backend (5.2). Global inline flag groups such as `(?i)` are rejected, as ECMA-262 does not have them. |
-| `idn-hostname` `idn-email` | RFC 5890–5893, RFC 6531 | Accepted unchecked until the IDNA tables exist (milestone 4c). |
+| `idn-hostname` | UTS #46, RFC 5890–5893 | UTS #46 processing (nontransitional, with STD3 rules, hyphen checks, CheckJoiners, CheckBidi and DNS lengths), then every label must also be a valid IDNA2008 label: each code point PVALID, or CONTEXTJ/CONTEXTO with its rule satisfied. So full-width characters and the ideographic full stop are mapped, and symbols UTS #46 allows only for compatibility (such as ≠) are rejected. A trailing root dot is rejected. See 5.4. |
+| `idn-email` | RFC 6531 | As `email`, but atoms and quoted strings may contain any non-ASCII character, and the domain is an `idn-hostname`. |
 
 ## 5.2 Regex
 
@@ -88,6 +90,17 @@ has been no need for one.
 
 - `minLength`/`maxLength` count code points, not bytes. This needs a fast UTF-8
   decoder, about 30 lines.
-- IDNA2008 for `idn-hostname` needs Unicode derived-property tables (about 50–100 KB
-  generated from the UCD). A generator script lives in `tools/` and its output is
-  committed, so there's no runtime dependency. ICU is deliberately avoided.
+- **IDNA** (milestone 4c). `idn-hostname`, `idn-email` and A-labels in `hostname` need
+  Unicode data. `tools/unicode/generate_tables.py` generates `src/unicode/tables.inc`
+  from a pinned UCD version (now 17.0.0), and the output is committed, so there's no
+  runtime dependency. ICU is deliberately avoided. The tables come to about 140 KB:
+  - the UTS #46 mapping, about 77 KB;
+  - NFC decompositions and compositions, about 37 KB;
+  - the IDNA2008 derived property, computed with the RFC 5892 rules rather than copied
+    from IANA, plus Bidi_Class, Joining_Type, the five scripts the contextual rules name,
+    marks and combining classes: about 26 KB together.
+- `src/unicode/` also holds UTF-8 decoding, NFC and Punycode (RFC 3492).
+- The code was checked against Unicode's own 17.0.0 conformance files
+  (`src/unicode/README.md`). Every `NormalizationTest.txt` line passes. Against
+  `IdnaTestV2.txt`, nothing UTS #46 rejects is accepted, and the only names UTS #46
+  accepts but we reject contain code points it marks as not valid under IDNA2008.
