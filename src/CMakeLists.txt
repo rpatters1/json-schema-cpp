@@ -30,6 +30,7 @@ add_library(jsonschema_objects OBJECT
     keywords/core.cpp
     keywords/keywords.cpp
     keywords/validation.cpp
+    output.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/metaschemas.cpp
     regex.cpp
     registry.cpp

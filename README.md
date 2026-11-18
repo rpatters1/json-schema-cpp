@@ -2,7 +2,7 @@
 
 A complete JSON Schema **2020-12** validator for [nlohmann::json](https://github.com/nlohmann/json).
 
-> Status: milestone 3a.
+> Status: milestone 3b.
 >
 > **Works now:**
 > - Every 2020-12 keyword, including `unevaluated*` and `$dynamicRef`.
@@ -11,11 +11,11 @@ A complete JSON Schema **2020-12** validator for [nlohmann::json](https://github
 > - Schema classification (doc 4).
 > - Meta-schema validation of schemas, with the 2020-12 meta-schemas built in.
 > - `$vocabulary`.
+> - The standard output formats `flag`, `basic` and `detailed`, and a command-line tool.
 >
 > **Not yet:**
 > - `format` is annotation-only.
 > - `pattern` uses an interim `std::regex` backend.
-> - The standard output formats are not implemented.
 >
 > See [docs/design](docs/design/README.md) and the [roadmap](docs/design/07-roadmap.md).
 
@@ -31,6 +31,20 @@ for (const auto& e : errors.errors) {
     std::cout << e.instance_location.to_string() << ": " << e.message << "\n";
 }
 ```
+
+## Command line
+
+```sh
+json-schema-cpp schema.json document.json...              # text: valid, or each error
+json-schema-cpp --output detailed schema.json doc.json    # 2020-12 output format (flag|basic|detailed)
+cat doc.json | json-schema-cpp schema.json                # standard input
+```
+
+- `$ref`s to files next to the schema are read from disk, because the schema's base URI
+  is its `file:` URI. Nothing is fetched over the network.
+- `--resource URI=FILE` registers other schemas.
+- Exit status: 0 if every document is valid, 1 if any is invalid, 2 on errors such as
+  an unreadable file or an invalid schema.
 
 ## Building
 

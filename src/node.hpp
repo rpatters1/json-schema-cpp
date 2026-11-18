@@ -170,10 +170,30 @@ struct instance_token
     bool is_index = false;
 };
 
+/// One subschema evaluation on the way to an error or annotation, for hierarchical
+/// output (2020-12 §12.4.3 "detailed").
+struct output_unit
+{
+    std::string keyword_location;       ///< evaluation path to the subschema
+    std::string_view absolute_location; ///< the subschema's absolute location
+    std::string instance_location;
+};
+
 /// Per-validation state. Not shared between threads.
 class eval_context
 {
 public:
+    struct error_entry
+    {
+        json::json_pointer instance_location;
+        std::string evaluation_path;
+        std::string_view schema_location;
+        std::string_view keyword;
+        std::string message;
+        const json* instance;
+        std::vector<output_unit> chain;   ///< enclosing subschema evaluations, outermost first (if recorded)
+    };
+
     struct settings
     {
         bool track_dynamic_scope = false;
@@ -182,6 +202,8 @@ public:
         bool annotations = false;
         bool classify = false;
         bool recover = false;
+        bool record_chains = false;                         ///< for "detailed" output
+        std::vector<error_entry>* captured_errors = nullptr;   ///< delivered errors are also copied here
     };
     explicit eval_context(const settings& s);
 
@@ -253,6 +275,7 @@ public:
         std::string schema_location;
         std::string_view keyword;
         const json* value;
+        std::vector<output_unit> chain;   ///< as for errors
     };
     struct classification_entry
     {
@@ -319,16 +342,17 @@ public:
 private:
     friend bool evaluate(const node&, const json&, eval_context&, frame*, edge);
 
-    struct error_entry
-    {
-        json::json_pointer instance_location;
-        std::string evaluation_path;
-        std::string_view schema_location;
-        std::string_view keyword;
-        std::string message;
-        const json* instance;
-    };
     void deliver(const error_entry& e);
+
+    /// The subschema evaluations currently open, for `record_chains`.
+    struct chain_entry
+    {
+        const node* subschema;
+        std::size_t evaluation_path_length;
+        std::size_t instance_path_length;
+    };
+    std::vector<chain_entry> chain_;
+    [[nodiscard]] std::vector<output_unit> current_chain() const;
 
     settings settings_;
     std::vector<const schema_resource*> dynamic_scope_;

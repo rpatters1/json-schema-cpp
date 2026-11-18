@@ -114,6 +114,12 @@ public:
     /// enabled at compile time.
     [[nodiscard]] result validate(const json& instance, const validation_options& options = {}) const;
 
+    /// Validates @p instance and returns the result in a standard output format (2020-12 §12.4):
+    /// `valid`, then `errors` (or `annotations` when valid) as output units with
+    /// `keywordLocation`, `absoluteKeywordLocation`, `instanceLocation`, and `error` or
+    /// `annotation`. Throws `evaluation_error` like `is_valid`.
+    [[nodiscard]] json output(const json& instance, output_format format = output_format::basic) const;
+
     /// The base URI of the root schema: its `$id`, else `compile_options::base_uri`, else a
     /// generated `urn:uuid:` URI.
     [[nodiscard]] const uri& base_uri() const noexcept;

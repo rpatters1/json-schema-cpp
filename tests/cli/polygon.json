@@ -1,0 +1,7 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "A polygon whose points are defined in a sibling file",
+    "type": "array",
+    "items": {"$ref": "point.json"},
+    "minItems": 3
+}

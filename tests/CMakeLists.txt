@@ -9,6 +9,7 @@ add_executable(jsonschema_unit_tests
     unit/classification_test.cpp
     unit/json_access_test.cpp
     unit/json_pointer_test.cpp
+    unit/output_test.cpp
     unit/schema_test.cpp
     unit/uri_test.cpp
     unit/validate_test.cpp
@@ -72,4 +73,29 @@ if(EXISTS "${JSONSCHEMA_SUITE_TESTS_DIR}")
 else()
     message(WARNING "JSON-Schema-Test-Suite not found at ${JSONSCHEMA_TEST_SUITE_DIR}; "
                     "run `git submodule update --init` to enable suite tests.")
+endif()
+
+# ---------------------------------------------------------------------------
+# Command-line tool (label: cli)
+# ---------------------------------------------------------------------------
+if(JSONSCHEMA_BUILD_CLI)
+    set(cli_dir ${CMAKE_CURRENT_SOURCE_DIR}/cli)
+    # name; expected exit status; regex the output must match; arguments...
+    function(jsonschema_cli_test name status pattern)
+        add_test(NAME cli/${name} COMMAND json-schema-cpp ${ARGN})
+        set_tests_properties(cli/${name} PROPERTIES LABELS cli PASS_REGULAR_EXPRESSION "${pattern}")
+        # PASS_REGULAR_EXPRESSION ignores the exit status, so check it with a second test.
+        add_test(NAME cli/${name}/status COMMAND json-schema-cpp --quiet ${ARGN})
+        set_tests_properties(cli/${name}/status PROPERTIES LABELS cli)
+        if(NOT status EQUAL 0)
+            set_tests_properties(cli/${name}/status PROPERTIES WILL_FAIL TRUE)
+        endif()
+    endfunction()
+    jsonschema_cli_test(valid 0 "triangle.json: valid" ${cli_dir}/polygon.json ${cli_dir}/triangle.json)
+    jsonschema_cli_test(invalid 1 "/1: the required property \"y\" is missing" ${cli_dir}/polygon.json ${cli_dir}/broken.json)
+    jsonschema_cli_test(detailed 1 "\"keywordLocation\": \"/items/\\$ref\"" --output detailed ${cli_dir}/polygon.json ${cli_dir}/broken.json)
+    jsonschema_cli_test(flag 0 "\"valid\": true" --output flag ${cli_dir}/polygon.json ${cli_dir}/triangle.json)
+    add_test(NAME cli/invalid-schema COMMAND json-schema-cpp ${cli_dir}/invalid-schema.json ${cli_dir}/triangle.json)
+    set_tests_properties(cli/invalid-schema PROPERTIES LABELS cli
+        PASS_REGULAR_EXPRESSION "not valid against its meta-schema")
 endif()
