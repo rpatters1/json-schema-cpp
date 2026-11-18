@@ -14,7 +14,6 @@ namespace {
 // identifiers and anchors (the registry handles them), annotations (`title`, `default`,
 // `format` until milestone 4, `content*`, ...), and keywords that a sibling compiles
 // (`then`/`else` with `if`, `minContains`/`maxContains` with `contains`).
-// `unevaluatedItems` and `unevaluatedProperties` arrive with annotations in milestone 2.
 // `dependencies` is superseded but supported by default (compile_options::legacy_dependencies).
 constexpr std::array keyword_table = {
     keyword_definition{"$dynamicRef", keyword_phase::reference, make_dynamic_ref},
@@ -50,6 +49,8 @@ constexpr std::array keyword_table = {
     keyword_definition{"propertyNames", keyword_phase::child, make_property_names},
     keyword_definition{"required", keyword_phase::assertion, make_required},
     keyword_definition{"type", keyword_phase::assertion, make_type},
+    keyword_definition{"unevaluatedItems", keyword_phase::unevaluated, make_unevaluated_items},
+    keyword_definition{"unevaluatedProperties", keyword_phase::unevaluated, make_unevaluated_properties},
     keyword_definition{"uniqueItems", keyword_phase::assertion, make_unique_items},
 };
 

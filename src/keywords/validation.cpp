@@ -4,6 +4,7 @@
 #include <cmath>
 #include <compare>
 #include <limits>
+#include <optional>
 #include <unordered_map>
 
 #include "json/access.hpp"
@@ -14,6 +15,11 @@ namespace jsonschema::detail {
 namespace ja = json_access;
 
 namespace {
+
+std::string in_quotes(std::string_view text)
+{
+    return "\"" + std::string(text) + "\"";
+}
 
 // ---------------------------------------------------------------------------
 // Any instance type
@@ -33,9 +39,20 @@ public:
         integer_bit = 1u << 6,
     };
 
-    explicit type_keyword(unsigned allowed) : allowed_(allowed) {}
+    type_keyword(unsigned allowed, std::string expected) : allowed_(allowed), expected_(std::move(expected)) {}
 
-    [[nodiscard]] bool evaluate(const json& instance, eval_context& /*context*/) const override
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* /*annotations*/) const override
+    {
+        if (matches(instance)) {
+            return true;
+        }
+        context.identity_failure();
+        context.fail(*this, instance, [&] { return "expected " + expected_ + ", got " + std::string(type_name(instance)); });
+        return false;
+    }
+
+private:
+    [[nodiscard]] bool matches(const json& instance) const
     {
         switch (ja::kind_of(instance)) {
         case ja::kind::null:
@@ -56,8 +73,8 @@ public:
         return false;
     }
 
-private:
     unsigned allowed_;
+    std::string expected_;  // "string", or "string or null"
 };
 
 class enum_keyword final : public keyword
@@ -65,13 +82,25 @@ class enum_keyword final : public keyword
 public:
     explicit enum_keyword(std::vector<json> values) : values_(std::move(values)) {}
 
-    [[nodiscard]] bool evaluate(const json& instance, eval_context& /*context*/) const override
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* /*annotations*/) const override
     {
         for (const auto& value : values_) {
             if (ja::equal(instance, value)) {
                 return true;
             }
         }
+        context.identity_failure();
+        context.fail(*this, instance, [&] {
+            std::string text = "the value " + brief(instance) + " is not one of the allowed values";
+            if (values_.size() <= 6) {
+                text += " (";
+                for (std::size_t i = 0; i < values_.size(); ++i) {
+                    text += (i == 0 ? "" : ", ") + brief(values_[i]);
+                }
+                text += ")";
+            }
+            return text;
+        });
         return false;
     }
 
@@ -84,9 +113,14 @@ class const_keyword final : public keyword
 public:
     explicit const_keyword(json value) : value_(std::move(value)) {}
 
-    [[nodiscard]] bool evaluate(const json& instance, eval_context& /*context*/) const override
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* /*annotations*/) const override
     {
-        return ja::equal(instance, value_);
+        if (ja::equal(instance, value_)) {
+            return true;
+        }
+        context.identity_failure();
+        context.fail(*this, instance, [&] { return "the value " + brief(instance) + " is not " + brief(value_); });
+        return false;
     }
 
 private:
@@ -151,9 +185,13 @@ class multiple_of_keyword final : public keyword
 public:
     explicit multiple_of_keyword(json divisor) : divisor_(std::move(divisor)) {}
 
-    [[nodiscard]] bool evaluate(const json& instance, eval_context& /*context*/) const override
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* /*annotations*/) const override
     {
-        return !instance.is_number() || is_multiple_of(instance, divisor_);
+        if (!instance.is_number() || is_multiple_of(instance, divisor_)) {
+            return true;
+        }
+        context.fail(*this, instance, [&] { return instance.dump() + " is not a multiple of " + divisor_.dump(); });
+        return false;
     }
 
 private:
@@ -174,21 +212,31 @@ class bound_keyword final : public keyword
 public:
     explicit bound_keyword(json limit) : limit_(std::move(limit)) {}
 
-    [[nodiscard]] bool evaluate(const json& instance, eval_context& /*context*/) const override
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* /*annotations*/) const override
     {
         if (!instance.is_number()) {
             return true;
         }
         const std::partial_ordering order = ja::compare_numbers(instance, limit_);
+        bool valid;
+        std::string_view relation;
         if constexpr (kind == bound::maximum) {
-            return order == std::partial_ordering::less || order == std::partial_ordering::equivalent;
+            valid = order == std::partial_ordering::less || order == std::partial_ordering::equivalent;
+            relation = "greater than the maximum";
         } else if constexpr (kind == bound::exclusive_maximum) {
-            return order == std::partial_ordering::less;
+            valid = order == std::partial_ordering::less;
+            relation = "not less than the exclusive maximum";
         } else if constexpr (kind == bound::minimum) {
-            return order == std::partial_ordering::greater || order == std::partial_ordering::equivalent;
+            valid = order == std::partial_ordering::greater || order == std::partial_ordering::equivalent;
+            relation = "less than the minimum";
         } else {
-            return order == std::partial_ordering::greater;
+            valid = order == std::partial_ordering::greater;
+            relation = "not greater than the exclusive minimum";
         }
+        if (!valid) {
+            context.fail(*this, instance, [&] { return instance.dump() + " is " + std::string(relation) + " " + limit_.dump(); });
+        }
+        return valid;
     }
 
 private:
@@ -220,30 +268,46 @@ class size_keyword final : public keyword
 public:
     explicit size_keyword(std::uint64_t limit) : limit_(limit) {}
 
-    [[nodiscard]] bool evaluate(const json& instance, eval_context& /*context*/) const override
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* /*annotations*/) const override
     {
         std::uint64_t size = 0;
+        std::string_view what;
+        std::string_view unit;
         if constexpr (measure == size_of::string_code_points) {
             if (!instance.is_string()) {
                 return true;
             }
             size = ja::code_point_count(ja::string_view_of(instance));
+            what = "string";
+            unit = "characters";
         } else if constexpr (measure == size_of::array_items) {
             if (!instance.is_array()) {
                 return true;
             }
             size = instance.size();
+            what = "array";
+            unit = "items";
         } else {
             if (!instance.is_object()) {
                 return true;
             }
             size = instance.size();
+            what = "object";
+            unit = "properties";
         }
+        bool valid;
         if constexpr (is_maximum) {
-            return size <= limit_;
+            valid = size <= limit_;
         } else {
-            return size >= limit_;
+            valid = size >= limit_;
         }
+        if (!valid) {
+            context.fail(*this, instance, [&] {
+                return "the " + std::string(what) + " has " + std::to_string(size) + " " + std::string(unit) + ", " +
+                       (is_maximum ? "more than the maximum of " : "fewer than the minimum of ") + std::to_string(limit_);
+            });
+        }
+        return valid;
     }
 
 private:
@@ -269,14 +333,19 @@ std::unique_ptr<keyword> make_size(const compile_scope& scope)
 class pattern_keyword final : public keyword
 {
 public:
-    explicit pattern_keyword(std::shared_ptr<const compiled_regex> pattern) : pattern_(std::move(pattern)) {}
+    pattern_keyword(std::string text, std::shared_ptr<const compiled_regex> pattern) : text_(std::move(text)), pattern_(std::move(pattern)) {}
 
-    [[nodiscard]] bool evaluate(const json& instance, eval_context& /*context*/) const override
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* /*annotations*/) const override
     {
-        return !instance.is_string() || pattern_->search(ja::string_view_of(instance));
+        if (!instance.is_string() || pattern_->search(ja::string_view_of(instance))) {
+            return true;
+        }
+        context.fail(*this, instance, [&] { return "the string " + brief(instance) + " does not match the pattern " + in_quotes(text_); });
+        return false;
     }
 
 private:
+    std::string text_;
     std::shared_ptr<const compiled_regex> pattern_;
 };
 
@@ -287,35 +356,48 @@ private:
 class unique_items_keyword final : public keyword
 {
 public:
-    [[nodiscard]] bool evaluate(const json& instance, eval_context& /*context*/) const override
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* /*annotations*/) const override
     {
         if (!instance.is_array() || instance.size() < 2) {
             return true;
         }
+        const auto duplicate = find_duplicate(instance);
+        if (!duplicate) {
+            return true;
+        }
+        context.fail(*this, instance, [&] {
+            return "the array items " + std::to_string(duplicate->first) + " and " + std::to_string(duplicate->second) + " are equal";
+        });
+        return false;
+    }
+
+private:
+    static std::optional<std::pair<std::size_t, std::size_t>> find_duplicate(const json& instance)
+    {
         constexpr std::size_t quadratic_limit = 16;
         if (instance.size() <= quadratic_limit) {
             for (std::size_t i = 1; i < instance.size(); ++i) {
                 for (std::size_t j = 0; j < i; ++j) {
                     if (ja::equal(instance[i], instance[j])) {
-                        return false;
+                        return std::pair{j, i};
                     }
                 }
             }
-            return true;
+            return std::nullopt;
         }
-        std::unordered_multimap<std::size_t, const json*> seen;
+        std::unordered_multimap<std::size_t, std::size_t> seen;
         seen.reserve(instance.size());
-        for (const auto& item : instance) {
-            const std::size_t h = ja::hash(item);
+        for (std::size_t i = 0; i < instance.size(); ++i) {
+            const std::size_t h = ja::hash(instance[i]);
             const auto [first, last] = seen.equal_range(h);
             for (auto it = first; it != last; ++it) {
-                if (ja::equal(item, *it->second)) {
-                    return false;
+                if (ja::equal(instance[i], instance[it->second])) {
+                    return std::pair{it->second, i};
                 }
             }
-            seen.emplace(h, &item);
+            seen.emplace(h, i);
         }
-        return true;
+        return std::nullopt;
     }
 };
 
@@ -342,23 +424,38 @@ std::vector<std::string> string_array(const compile_scope& scope, const json& va
 class required_keyword final : public keyword
 {
 public:
-    explicit required_keyword(std::vector<std::string> names) : names_(std::move(names)) {}
+    struct name_entry
+    {
+        std::string name;
+        bool discriminator;     // a missing discriminator is an identity failure (doc 4.6)
+    };
 
-    [[nodiscard]] bool evaluate(const json& instance, eval_context& /*context*/) const override
+    explicit required_keyword(std::vector<name_entry> names) : names_(std::move(names)) {}
+
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* /*annotations*/) const override
     {
         if (!instance.is_object()) {
             return true;
         }
-        for (const auto& name : names_) {
-            if (!instance.contains(name)) {
-                return false;
+        bool valid = true;
+        for (const auto& entry : names_) {
+            if (instance.contains(entry.name)) {
+                continue;
+            }
+            valid = false;
+            if (entry.discriminator) {
+                context.identity_failure();
+            }
+            context.fail(*this, instance, [&] { return "the required property " + in_quotes(entry.name) + " is missing"; });
+            if (!context.exhaustive()) {
+                break;
             }
         }
-        return true;
+        return valid;
     }
 
 private:
-    std::vector<std::string> names_;
+    std::vector<name_entry> names_;
 };
 
 class dependent_required_keyword final : public keyword
@@ -369,27 +466,53 @@ public:
     {
     }
 
-    [[nodiscard]] bool evaluate(const json& instance, eval_context& /*context*/) const override
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* /*annotations*/) const override
     {
         if (!instance.is_object()) {
             return true;
         }
+        bool valid = true;
         for (const auto& [name, required] : dependencies_) {
             if (!instance.contains(name)) {
                 continue;
             }
             for (const auto& other : required) {
-                if (!instance.contains(other)) {
+                if (instance.contains(other)) {
+                    continue;
+                }
+                valid = false;
+                context.fail(*this, instance, [&] {
+                    return "the property " + in_quotes(name) + " requires the property " + in_quotes(other) + ", which is missing";
+                });
+                if (!context.exhaustive()) {
                     return false;
                 }
             }
         }
-        return true;
+        return valid;
     }
 
 private:
     std::vector<std::pair<std::string, std::vector<std::string>>> dependencies_;
 };
+
+/// True if the schema's `properties` gives @p name a `const` or single-value `enum` subschema.
+bool is_discriminator(const compile_scope& scope, const std::string& name)
+{
+    const json* properties = scope.sibling("properties");
+    if (properties == nullptr || !properties->is_object()) {
+        return false;
+    }
+    const auto it = properties->find(name);
+    if (it == properties->end() || !it->is_object()) {
+        return false;
+    }
+    if (it->contains("const")) {
+        return true;
+    }
+    const auto values = it->find("enum");
+    return values != it->end() && values->is_array() && values->size() == 1;
+}
 
 } // namespace
 
@@ -409,18 +532,22 @@ std::unique_ptr<keyword> make_type(const compile_scope& scope)
         scope.fail("the value must be a type name or an array of type names");
     };
     unsigned allowed = 0;
+    std::string expected;
     if (scope.value().is_array()) {
-        for (const auto& name : scope.value()) {
-            const unsigned bit = bit_for(name);
+        const auto& names = scope.value();
+        for (std::size_t i = 0; i < names.size(); ++i) {
+            const unsigned bit = bit_for(names[i]);
             if ((allowed & bit) != 0) {
                 scope.fail("type names must be unique");
             }
             allowed |= bit;
+            expected += (i == 0 ? "" : (i + 1 == names.size() ? " or " : ", ")) + names[i].get<std::string>();
         }
     } else {
         allowed = bit_for(scope.value());
+        expected = scope.value().get<std::string>();
     }
-    return std::make_unique<type_keyword>(allowed);
+    return std::make_unique<type_keyword>(allowed, expected.empty() ? std::string("no type at all") : expected);
 }
 
 std::unique_ptr<keyword> make_enum(const compile_scope& scope)
@@ -480,7 +607,8 @@ std::unique_ptr<keyword> make_pattern(const compile_scope& scope)
     if (!scope.value().is_string()) {
         scope.fail("the value must be a string");
     }
-    return std::make_unique<pattern_keyword>(scope.regex(scope.value().get_ref<const std::string&>()));
+    const std::string& text = scope.value().get_ref<const std::string&>();
+    return std::make_unique<pattern_keyword>(text, scope.regex(text));
 }
 
 std::unique_ptr<keyword> make_max_items(const compile_scope& scope)
@@ -520,7 +648,13 @@ std::unique_ptr<keyword> make_required(const compile_scope& scope)
     if (names.empty()) {
         return nullptr;
     }
-    return std::make_unique<required_keyword>(std::move(names));
+    std::vector<required_keyword::name_entry> entries;
+    entries.reserve(names.size());
+    for (auto& name : names) {
+        const bool discriminator = is_discriminator(scope, name);
+        entries.push_back({std::move(name), discriminator});
+    }
+    return std::make_unique<required_keyword>(std::move(entries));
 }
 
 std::unique_ptr<keyword> make_dependent_required(const compile_scope& scope)

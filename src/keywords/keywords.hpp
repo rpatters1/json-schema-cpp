@@ -55,6 +55,8 @@ std::unique_ptr<keyword> make_property_names(const compile_scope&);
 std::unique_ptr<keyword> make_prefix_items(const compile_scope&);
 std::unique_ptr<keyword> make_items(const compile_scope&);
 std::unique_ptr<keyword> make_contains(const compile_scope&);
+std::unique_ptr<keyword> make_unevaluated_properties(const compile_scope&);
+std::unique_ptr<keyword> make_unevaluated_items(const compile_scope&);
 
 // validation.cpp
 std::unique_ptr<keyword> make_type(const compile_scope&);

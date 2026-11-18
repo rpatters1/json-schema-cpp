@@ -28,6 +28,18 @@ constexpr std::array<std::string_view, 8> other_dialects = {
 
 constexpr std::size_t max_meta_schema_chain = 16;
 
+/// Whether a keyword that has no compiled behavior is reported as an annotation: the
+/// annotation keywords of the meta-data, format and content vocabularies, plus unknown
+/// keywords (2020-12 core §7.1). Identifiers, `$defs`, `$comment` and keywords compiled by a
+/// sibling (`then`, `minContains`, ...) are not annotations.
+bool produces_annotation(std::string_view name, const compile_options& /*options*/)
+{
+    static constexpr std::array<std::string_view, 12> not_annotations = {
+        "$anchor", "$comment", "$defs", "$dynamicAnchor", "$id", "$schema",
+        "$vocabulary", "definitions", "else", "maxContains", "minContains", "then"};
+    return std::find(not_annotations.begin(), not_annotations.end(), name) == not_annotations.end();
+}
+
 /// A random (version 4) `urn:uuid:` URI, the base of a schema with no other base URI (doc 2.3).
 uri generated_base_uri()
 {
@@ -157,6 +169,10 @@ const node* compiler::node_for(const json& schema_value)
     created.schema = &schema_value;
     created.resource = location.resource;
     created.pointer = location.pointer;
+    created.location = location.resource->base + "#" + encode_fragment(location.pointer);
+    if (options_.classification.enabled) {
+        name_node(created, location);
+    }
     nodes_by_schema_.emplace(&schema_value, &created);
     queue_.push_back(&created);
     return &created;
@@ -195,7 +211,77 @@ void compiler::run()
         }
     }
     target_.uses_dynamic_scope = !bindings_.empty();
+    target_.classification_enabled = options_.classification.enabled;
+    target_.complete_walk = options_.classification.complete_walk;
+    target_.recover = options_.classification.recovery.recovers();
     check_cycles();
+    if (options_.classification.enabled) {
+        compute_schema_info();
+    }
+}
+
+void compiler::name_node(node& target, const schema_location& location)
+{
+    // The keyword holding the node, and its member name or index (doc 4.4), from the
+    // node's path in its document.
+    const auto tokens = json_pointer::parse(location.document_pointer);
+    std::string parent_keyword;
+    std::string key;
+    if (tokens) {
+        const auto is_in = [](const auto& list, const std::string& token) {
+            return std::find(list.begin(), list.end(), token) != list.end();
+        };
+        for (std::size_t i = 0; i < tokens->size();) {
+            const std::string& token = (*tokens)[i];
+            if ((is_in(map_subschema_keywords, token) || is_in(array_subschema_keywords, token)) && i + 1 < tokens->size()) {
+                parent_keyword = token;
+                key = (*tokens)[i + 1];
+                i += 2;
+            } else {
+                parent_keyword = token;
+                key.clear();
+                i += 1;
+            }
+        }
+    }
+    const schema_node_view view{target.location, *target.schema, parent_keyword, key};
+    if (auto name = options_.classification.name_rule(view)) {
+        target.name = std::move(*name);
+        target.info = std::make_unique<schema_info>();
+    }
+}
+
+void compiler::compute_schema_info()
+{
+    // A named node declares the properties of every schema it always applies at its own
+    // location: itself, and what it reaches through `$ref`, `$dynamicRef` and `allOf`.
+    for (node& named : target_.nodes) {
+        if (named.name.empty()) {
+            continue;
+        }
+        std::vector<std::string> declared;
+        std::vector<const node*> pending{&named};
+        std::unordered_set<const node*> seen{&named};
+        while (!pending.empty()) {
+            const node* current = pending.back();
+            pending.pop_back();
+            node_facts facts;
+            for (const auto& k : current->keywords) {
+                k->collect_facts(facts);
+            }
+            for (const auto name : facts.declared_properties) {
+                declared.emplace_back(name);
+            }
+            for (const node* next : facts.always_applied) {
+                if (seen.insert(next).second) {
+                    pending.push_back(next);
+                }
+            }
+        }
+        std::sort(declared.begin(), declared.end());
+        declared.erase(std::unique(declared.begin(), declared.end()), declared.end());
+        named.info->set_declared_properties(std::move(declared));
+    }
 }
 
 void compiler::compile_node(node& target)
@@ -215,13 +301,25 @@ void compiler::compile_node(node& target)
         std::unique_ptr<keyword> compiled;
     };
     std::vector<compiled_keyword> compiled;
-    for (const auto& [name, value] : schema_value.items()) {
+    for (auto it = schema_value.begin(); it != schema_value.end(); ++it) {
+        const std::string& name = it.key();
+        const json& value = it.value();
         const keyword_definition* definition = find_keyword(name);
         if (definition == nullptr) {
-            continue;   // annotations, unknown keywords, and keywords compiled by a sibling
+            // Annotation keywords and unknown keywords (which 2020-12 collects as annotations)
+            // are reported to an annotation sink. Identifiers, `$defs` and keywords that a
+            // sibling compiles are not annotations.
+            if (produces_annotation(name, options_)) {
+                target.annotations.emplace_back(name, &value);
+            }
+            continue;
         }
         const compile_scope scope(*this, target, definition->name, value);
         if (auto result = definition->factory(scope)) {
+            result->bind(definition->name, target.location + "/" + encode_fragment(json_pointer::escape(definition->name)));
+            if (definition->phase == keyword_phase::unevaluated) {
+                target.has_unevaluated = true;
+            }
             compiled.push_back({definition->phase, std::move(result)});
         }
     }
@@ -287,7 +385,7 @@ void compiler::check_cycles() const
     // schema would be applied to the same instance location forever.
     enum class state : std::uint8_t { unvisited, active, done };
     std::unordered_map<const node*, state> states;
-    struct frame
+    struct dfs_frame
     {
         const node* current;
         std::vector<const node*> children;
@@ -297,10 +395,10 @@ void compiler::check_cycles() const
         if (states[&start] != state::unvisited) {
             continue;
         }
-        std::vector<frame> stack;
+        std::vector<dfs_frame> stack;
         const auto push = [&](const node* n) {
             states[n] = state::active;
-            frame f{n, {}, 0};
+            dfs_frame f{n, {}, 0};
             for (const auto& k : n->keywords) {
                 k->in_place_subschemas(f.children);
             }
@@ -308,7 +406,7 @@ void compiler::check_cycles() const
         };
         push(&start);
         while (!stack.empty()) {
-            frame& top = stack.back();
+            dfs_frame& top = stack.back();
             if (top.next == top.children.size()) {
                 states[top.current] = state::done;
                 stack.pop_back();

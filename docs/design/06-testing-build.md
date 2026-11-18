@@ -16,9 +16,12 @@ commit and updated on purpose. Since 2026 the suite is organized like this:
   `compile_options::resources`.
 - `tags` of `format-assertion` / `format-annotation` select the format mode.
 - `proposals/` (unreleased keywords) is not run.
-- `annotations/tests/*.json` is a separate **annotation** suite. It gets its own runner
-  in milestone 2, where it checks the annotation collection that `unevaluated*` and
-  classification depend on.
+- `annotations/tests/*.json` is a separate **annotation** suite.
+  - `tests/suite/annotation_runner.cpp` runs it as the CTest test `annotations`, with
+    labels `suite` and `suite-annotations`. All 55 tests for 2020-12 pass.
+  - The suite writes schema locations as pointers from the document root. The runner
+    resolves `$id` along each pointer to compare with the library's canonical absolute
+    locations.
 
 At the pinned commit, 2020-12 has **2,082 required tests** (431 cases in 59 files) and
 **206 optional tests** (62 cases in 11 files).

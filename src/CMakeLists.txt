@@ -3,6 +3,7 @@
 # reach internal (non-exported) functions in shared builds too.
 add_library(jsonschema_objects OBJECT
     compiler.cpp
+    eval.cpp
     json/access.cpp
     json/pointer.cpp
     keywords/applicator.cpp

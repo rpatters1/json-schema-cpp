@@ -3,10 +3,12 @@
 # ---------------------------------------------------------------------------
 add_executable(jsonschema_unit_tests
     unit/main.cpp
+    unit/classification_test.cpp
     unit/json_access_test.cpp
     unit/json_pointer_test.cpp
     unit/schema_test.cpp
     unit/uri_test.cpp
+    unit/validate_test.cpp
 )
 find_package(Threads REQUIRED)
 target_link_libraries(jsonschema_unit_tests PRIVATE jsonschema_objects doctest::doctest Threads::Threads)
@@ -31,6 +33,17 @@ set_target_properties(jsonschema_suite_runner PROPERTIES CXX_EXTENSIONS OFF)
 jsonschema_configure_target(jsonschema_suite_runner)
 
 set(JSONSCHEMA_SUITE_TESTS_DIR "${JSONSCHEMA_TEST_SUITE_DIR}/validation/tests")
+
+add_executable(jsonschema_annotation_runner suite/annotation_runner.cpp)
+target_link_libraries(jsonschema_annotation_runner PRIVATE jsonschema::jsonschema)
+set_target_properties(jsonschema_annotation_runner PROPERTIES CXX_EXTENSIONS OFF)
+jsonschema_configure_target(jsonschema_annotation_runner)
+set(JSONSCHEMA_ANNOTATION_TESTS_DIR "${JSONSCHEMA_TEST_SUITE_DIR}/annotations/tests")
+if(EXISTS "${JSONSCHEMA_ANNOTATION_TESTS_DIR}")
+    add_test(NAME annotations
+        COMMAND jsonschema_annotation_runner --tests-dir "${JSONSCHEMA_ANNOTATION_TESTS_DIR}" --verbose)
+    set_tests_properties(annotations PROPERTIES LABELS "suite;suite-annotations")
+endif()
 set(JSONSCHEMA_EXPECTED_FAILURES "${CMAKE_CURRENT_SOURCE_DIR}/suite/expected-failures.json")
 
 if(EXISTS "${JSONSCHEMA_SUITE_TESTS_DIR}")

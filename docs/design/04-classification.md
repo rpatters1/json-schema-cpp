@@ -92,10 +92,16 @@ That lets each consumer choose its own policy, rather than the library guessing.
 mnxdom's current policy, "the name reached through the `$ref` chain, ignoring names
 reached through `allOf`", becomes: *take the last match before the first `in_place`*.
 
-**Delivery order.** Callbacks arrive in document order, after each location's result
-is final. Until then they are buffered in the same frames as annotations. Validating
-with classification on takes a little more memory than validating without, but still
-needs only one pass.
+**`via`** is the strongest edge since the previous match at the same location, where
+`in_place` beats `ref` and `ref` beats `child`/`root`. An item reached through
+`items → anyOf → $ref` is therefore `in_place`.
+
+**Delivery order.** Callbacks arrive in document order, after validation finishes. A
+location's matches aren't final until every enclosing applicator has decided. Until
+then they are kept in a classification log that is cut back at the same marks as
+annotations (doc 2.5). At the end, a structural walk of the instance delivers each
+location's matches by instance address. Memory is proportional to the number of
+matches, and it is still one pass of validation.
 
 ## 4.4 Naming rules
 
@@ -123,11 +129,17 @@ dictionary key (in `kit` or `sounds`, it's not an id). The validator already kno
 which keyword covered each member, so `schema_info` exposes it:
 
 ```cpp
-struct schema_info {
-    bool declares_property(std::string_view name) const;   // listed in this node's `properties`,
-                                                           // or in any in-place subschema that passed
+class schema_info {
+public:
+    bool declares_property(std::string_view name) const;   // listed in this node's `properties`, or in those
+                                                           // of a schema it always applies at the same location
 };
 ```
+
+"Always applies" means through `$ref`, `$dynamicRef` (its initial target) and `allOf`.
+It is decided at compile time, so the check costs one binary search. Branches of
+`anyOf`/`oneOf` are reported as matches of their own, and a consumer can ask their
+`info` instead.
 
 So the mnxdom check becomes: `instance` is an object, `instance["id"]` is a string, and
 `matches.back().info.declares_property("id")` or the policy-selected match's does.
@@ -184,9 +196,19 @@ each branch:
 classifications, which matches the annotation rules.
 
 `recovery_policy::none()` turns all of this off: classifications follow the strict
-annotation rules. `recovery_policy::custom(fn)` lets a consumer decide per failed node
-from its error list. This is an advanced option; the default should suit any schema
-that uses `const` discriminators, which is the common JSON Schema idiom.
+annotation rules.
+
+`recovery_policy::custom(fn)`, which would let a consumer decide per failed node from
+its error list, is **not implemented**. It would need error lists collected even
+without an error sink. The default suits any schema that uses `const` discriminators,
+which is the common JSON Schema idiom, and nothing so far needs more.
+
+**How identity propagates.** An identity failure in a subschema applied
+unconditionally at the same location (`$ref`, `allOf`, `then`/`else`) is an identity
+failure of the node that applied it. That is how an `anyOf` branch that is only
+`{"$ref": "#/$defs/grace"}` counts as "not a grace". A failure inside a child
+location is a content failure of the parent, except for a discriminator property.
+Discriminators are found in every node, named or not.
 
 ### Complete walk
 
@@ -206,8 +228,14 @@ enum class confidence             { exact, recovered, ambiguous };
 enum class classification_status  { exact, recovered, ambiguous, unclassified };   // weakest match wins
 ```
 
-`exact` means the location is on a passing path. It's the same answer the strict
-annotation rules would give.
+- `exact` means the named schema itself passed and was chosen by passing, not by
+  recovery.
+- `recovered` means the named schema failed with content errors only, so there is
+  always an error under that location.
+
+So in an invalid document, an object far from any error is still `exact`, even though
+its ancestors failed. On a valid document every match is `exact`, which is the answer
+the strict annotation rules give.
 
 ### Interaction with errors
 
