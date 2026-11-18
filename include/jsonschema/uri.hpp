@@ -8,6 +8,13 @@
 
 #include <jsonschema/export.hpp>
 
+#if defined(_MSC_VER)
+#pragma warning(push)
+// Exported classes with standard-library members or bases. Harmless: a C++ API like this
+// one already requires the library and its clients to use the same runtime.
+#pragma warning(disable : 4251 4275)
+#endif
+
 namespace jsonschema {
 
 /// Thrown by the throwing `uri` constructor when its input is not an RFC 3986 URI-reference.
@@ -99,3 +106,7 @@ private:
 [[nodiscard]] JSONSCHEMA_EXPORT bool is_ipv4_address(std::string_view text) noexcept;
 
 } // namespace jsonschema
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif

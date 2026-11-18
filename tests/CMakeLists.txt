@@ -9,6 +9,9 @@ add_executable(jsonschema_unit_tests
 target_link_libraries(jsonschema_unit_tests PRIVATE jsonschema_objects doctest::doctest)
 set_target_properties(jsonschema_unit_tests PROPERTIES CXX_EXTENSIONS OFF)
 jsonschema_configure_target(jsonschema_unit_tests)
+# doctest (2.4.11 and 2.4.12) includes <ciso646> under Clang, which libstdc++ 15 flags
+# with a #warning in C++20 mode.
+target_compile_options(jsonschema_unit_tests PRIVATE "$<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-#warnings>")
 
 add_test(NAME unit COMMAND jsonschema_unit_tests)
 set_tests_properties(unit PROPERTIES LABELS unit)
