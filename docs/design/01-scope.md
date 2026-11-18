@@ -80,6 +80,19 @@ CI enforces this: the macOS job builds with the 10.15 deployment target. Using a
 gated feature fails at compile time with an "unavailable" error, so mistakes are
 caught on the pull request.
 
+## Superseded keywords
+
+The 2020-12 meta-schema still describes four keywords that 2020-12 replaced, all
+marked deprecated. They are handled as follows (decided):
+
+| Keyword | Handling | Why |
+|---------|----------|-----|
+| `definitions` | Treated exactly like `$defs`, always | The validation spec (Appendix A) says implementations SHOULD. It only affects where identifiers are found, never validity. |
+| `dependencies` | Evaluated as `dependentRequired` (array members) or `dependentSchemas` (schema members). On by default; `compile_options::legacy_dependencies = false` ignores it | The spec doesn't require it, but a 2020-12 schema that uses it almost always means it, and ignoring it silently would leave the constraint unenforced. The optional `dependencies-compatibility` tests expect it. |
+| `$recursiveRef`, `$recursiveAnchor` | Not supported (ignored as unknown keywords) | 2019-09's mechanism with different semantics. The spec doesn't expect it, and the suite doesn't test it for 2020-12. |
+
+None of these exist in JSON Schema v1 (doc 8).
+
 ## Non-goals
 
 - Drafts other than 2020-12, including 2019-09's `$recursiveRef`.

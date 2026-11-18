@@ -34,7 +34,9 @@ None of this is taken from the predecessor.
 The registry owns every schema document and maps absolute URIs to locations within them.
 
 - **Resource discovery.** Adding a document walks it using the 2020-12 rules for
-  which keywords contain subschemas. Every `$id` starts an embedded resource. Every
+  which keywords contain subschemas. The superseded `definitions` and `dependencies`
+  count too: the spec says to treat `definitions` like `$defs`, and the 2020-12
+  meta-schema still describes both. Every `$id` starts an embedded resource. Every
   `$anchor` and `$dynamicAnchor` is recorded against its resource.
 - **Base URI.** The caller supplies it, or it comes from the root `$id`. A schema
   with neither gets a generated `urn:uuid:` base so that relative references still
@@ -133,6 +135,11 @@ bool evaluate(const Node&, const Json& instance, Frame& frame, Context& ctx);
   validity.
 - If a node fails, the caller discards its frame, which removes everything collected
   under it.
+- **Dropped annotations.** When output that reports failed subschemas is requested
+  (`verbose`, and the newer output specification's "dropped annotations"; doc 8), a
+  failed child frame's annotations move to a dropped list on the parent instead of
+  being freed. They never feed `unevaluated*` or classification. Every other path
+  frees them as above, so the fast paths pay nothing.
 
 **Errors** follow the same discipline. Errors found inside a branch that may later be
 discarded (`anyOf`, `oneOf`, `not`, `if`) are buffered in the child frame. They are

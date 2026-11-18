@@ -36,12 +36,16 @@ struct schema_location
 };
 
 /// 2020-12 keywords whose values are subschemas, by shape. Discovery (and so `$id` and
-/// anchor recognition) follows exactly these.
+/// anchor recognition) follows exactly these. Two superseded keywords that the 2020-12
+/// meta-schema still describes are included: `definitions`, which implementations SHOULD
+/// treat like `$defs` (validation spec, Appendix A), and `dependencies`, whose object-valued
+/// members are schemas (array-valued members are skipped, as they are not schemas).
 inline constexpr std::array<std::string_view, 11> single_subschema_keywords = {
     "additionalProperties", "contains", "contentSchema", "else", "if", "items",
     "not", "propertyNames", "then", "unevaluatedItems", "unevaluatedProperties"};
 inline constexpr std::array<std::string_view, 4> array_subschema_keywords = {"allOf", "anyOf", "oneOf", "prefixItems"};
-inline constexpr std::array<std::string_view, 4> map_subschema_keywords = {"$defs", "dependentSchemas", "patternProperties", "properties"};
+inline constexpr std::array<std::string_view, 6> map_subschema_keywords = {
+    "$defs", "definitions", "dependencies", "dependentSchemas", "patternProperties", "properties"};
 
 /// The 2020-12 meta-schema URI.
 inline constexpr std::string_view dialect_2020_12 = "https://json-schema.org/draft/2020-12/schema";

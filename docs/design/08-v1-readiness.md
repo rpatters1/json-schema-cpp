@@ -46,6 +46,7 @@ Sources:
 | **Regex** | ECMA-262 | ECMA-262 (17th ed.) with the `u` flag. An engine that can't give ECMA-262 results for a pattern MUST refuse the schema. | The PCRE2 translation layer (doc 5.2) must reject what it can't translate faithfully rather than approximate it. The interim `std::regex` backend doesn't meet this. |
 | **Output** | §12: `flag`, `basic`, `detailed`, `verbose`. Units carry `keywordLocation` and `absoluteKeywordLocation` | A separate spec. Formats `flag`, `list`, `hierarchical`. Units carry **Evaluation Path**, **Schema Location** and Instance Location, plus optional *dropped annotations* from failed subschemas | Milestone 2 names fields after v1's terms. The annotation design must be able to keep annotations from failed branches when asked. |
 | **`contains` on objects** | Arrays only | Still arrays only (ADR 2024-02) | None. |
+| **Superseded keywords** | `definitions` treated like `$defs`; `dependencies` supported by default (doc 1) | Gone. The v1 meta-schema rejects both as unknown keywords. The suite's `dependencies-compatibility` cases are `2019,<=2020`. | A v1 version removes them from discovery and the keyword table. |
 
 ## 8.3 Strategy: versioning, not dual support
 
@@ -71,7 +72,9 @@ are.
 
 ### Small things to do in milestone 2 anyway
 
-They cost nothing extra and make the change of version smaller:
+They cost nothing extra and make the change of version smaller. Item 3 was done in the
+pre-milestone-2 readiness change. Items 1 and 2 are written into docs 3.2 and 2.5, so
+milestone 2 builds them that way.
 
 1. **Name error and output fields after v1:** `evaluation_path`, `schema_location`
    and `instance_location`. They describe 2020-12's `keywordLocation` and

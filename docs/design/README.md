@@ -16,6 +16,8 @@
 - 2020-12 only. A schema whose `$schema` names another dialect is rejected by default.
   An option treats it as 2020-12 anyway. JSON Schema v1 is expected to be handled by
   a later major version of the library, not by dual-dialect support (doc 8).
+- Superseded keywords the spec still expects to work are supported: `definitions`
+  always, `dependencies` by default with an opt-out (doc 1).
 - Built on `nlohmann::json`, accessed through a narrow internal layer (see doc 2).
 - A new repository, not a fork. Files reused from pboettch/json-schema-validator keep
   their MIT notices.

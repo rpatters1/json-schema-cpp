@@ -20,6 +20,7 @@ struct compile_options {
     std::vector<resource>     resources;           // {retrieval uri, document} pairs registered before compiling
     format_mode               formats = format_mode::annotate;   // annotate | assert
     bool                      accept_other_dialects = false;     // treat foreign $schema as 2020-12
+    bool                      legacy_dependencies = true;        // evaluate draft-07 `dependencies` (doc 1)
     bool                      validate_against_metaschema = true;
     regex_engine_factory      regex;               // default: built-in engine (doc 5)
     classification_options    classification;      // doc 4; off by default
@@ -46,6 +47,12 @@ a need for it.
 `schema_error` derives from `std::runtime_error`. It carries the schema location and,
 when meta-schema validation failed, the list of meta-schema errors.
 
+`evaluation_error`, also derived from `std::runtime_error`, is thrown *during
+validation* when the result is indeterminate: neither valid nor invalid. Today the only
+case is a `$dynamicRef` that recurses forever at one instance location. It is separate
+from `schema_error` so that callers of `is_valid` and `validate` can tell a broken
+evaluation from a broken schema. JSON Schema v1 adds more such cases (doc 8).
+
 ## 3.2 Validating
 
 ```cpp
@@ -61,7 +68,7 @@ class schema {
     // ...
     bool   is_valid(const json& instance) const;                       // fastest path
     result validate(const json& instance, const validation_options& = {}) const;
-    output validate(const json& instance, output_format) const;        // flag | basic | detailed | verbose
+    output validate(const json& instance, output_format) const;        // see "Standard output"
 };
 
 struct result {
@@ -75,11 +82,13 @@ struct result {
 ```cpp
 struct error {
     json::json_pointer instance_location;
-    std::string        keyword_location;           // path through the schema, including $ref hops
-    std::string        absolute_keyword_location;  // URI of the keyword
-    std::string_view   keyword;                    // e.g. "required"
-    std::string        message;                    // human-readable
-    const json&        instance;                   // the failing value; valid during the callback
+    std::string        evaluation_path;    // path through the schema, including $ref hops
+                                           //   (2020-12 output: "keywordLocation")
+    std::string        schema_location;    // absolute URI of the keyword
+                                           //   (2020-12 output: "absoluteKeywordLocation")
+    std::string_view   keyword;            // e.g. "required"
+    std::string        message;            // human-readable
+    const json&        instance;           // the failing value; valid during the callback
 };
 
 class error_sink {
@@ -103,6 +112,12 @@ Ready-made sinks: `collecting_error_sink` (a vector), `first_error_sink`, and
 `output_format::{flag, basic, detailed, verbose}` produce the JSON structures defined
 in 2020-12 §12 as `nlohmann::json`. They are built on the same sinks, so they add
 nothing to the core.
+
+Field and member names inside the library follow the terms of the newer output
+specification (`evaluation_path`, `schema_location`; doc 8). The §12 serializers map
+them to 2020-12's JSON names. A later version can then add that specification's `list`
+and `hierarchical` formats without renaming anything. `verbose` needs annotations from
+failed subschemas, so the evaluator can keep them on request (doc 2.5).
 
 ## 3.3 Formats and content
 

@@ -151,6 +151,56 @@ private:
     std::vector<std::pair<std::string, const node*>> dependencies_;
 };
 
+/// The superseded `dependencies` keyword: each member is either an array of property
+/// names (now `dependentRequired`) or a schema (now `dependentSchemas`).
+class dependencies_keyword final : public keyword
+{
+public:
+    struct dependency
+    {
+        std::string name;
+        std::vector<std::string> required;  // array form
+        const node* subschema = nullptr;    // schema form
+    };
+
+    explicit dependencies_keyword(std::vector<dependency> dependencies) : dependencies_(std::move(dependencies)) {}
+
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context) const override
+    {
+        if (!instance.is_object()) {
+            return true;
+        }
+        for (const auto& d : dependencies_) {
+            if (!instance.contains(d.name)) {
+                continue;
+            }
+            if (d.subschema != nullptr) {
+                if (!detail::evaluate(*d.subschema, instance, context)) {
+                    return false;
+                }
+            } else {
+                for (const auto& other : d.required) {
+                    if (!instance.contains(other)) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+    void in_place_subschemas(std::vector<const node*>& out) const override
+    {
+        for (const auto& d : dependencies_) {
+            if (d.subschema != nullptr) {
+                out.push_back(d.subschema);
+            }
+        }
+    }
+
+private:
+    std::vector<dependency> dependencies_;
+};
+
 // ---------------------------------------------------------------------------
 // Child applicators: objects
 // ---------------------------------------------------------------------------
@@ -402,6 +452,33 @@ std::unique_ptr<keyword> make_if(const compile_scope& scope)
 std::unique_ptr<keyword> make_dependent_schemas(const compile_scope& scope)
 {
     return std::make_unique<dependent_schemas_keyword>(subschema_map(scope));
+}
+
+std::unique_ptr<keyword> make_dependencies(const compile_scope& scope)
+{
+    if (!scope.options().legacy_dependencies) {
+        return nullptr;     // strict 2020-12: an unknown keyword
+    }
+    if (!scope.value().is_object()) {
+        scope.fail("the value must be an object whose values are schemas or arrays of strings");
+    }
+    std::vector<dependencies_keyword::dependency> dependencies;
+    for (const auto& [name, value] : scope.value().items()) {
+        dependencies_keyword::dependency d;
+        d.name = name;
+        if (value.is_array()) {
+            for (const auto& element : value) {
+                if (!element.is_string()) {
+                    scope.fail("an array member must contain only strings");
+                }
+                d.required.push_back(element.get<std::string>());
+            }
+        } else {
+            d.subschema = scope.subschema(value);
+        }
+        dependencies.push_back(std::move(d));
+    }
+    return std::make_unique<dependencies_keyword>(std::move(dependencies));
 }
 
 std::unique_ptr<keyword> make_properties(const compile_scope& scope)
