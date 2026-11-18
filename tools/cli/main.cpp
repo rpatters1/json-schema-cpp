@@ -12,6 +12,7 @@
 //   --resource URI=FILE                  register FILE as the schema with URI (repeatable)
 //   --base-uri URI                       base URI of SCHEMA (default: its file: URI)
 //   --max-errors N                       report at most N errors per instance (text output)
+//   --assert-formats                     make `format` an assertion
 //   --no-metaschema                      do not validate the schema against its meta-schema
 //   --strict-dependencies                ignore the superseded `dependencies` keyword
 //   --quiet                              print nothing; use the exit status only
@@ -55,6 +56,7 @@ void usage(std::ostream& out)
            "  --resource URI=FILE                  register FILE as the schema with URI (repeatable)\n"
            "  --base-uri URI                       base URI of SCHEMA (default: its file: URI)\n"
            "  --max-errors N                       report at most N errors per instance (text output)\n"
+           "  --assert-formats                     make `format` an assertion\n"
            "  --no-metaschema                      do not validate SCHEMA against its meta-schema\n"
            "  --strict-dependencies                ignore the superseded `dependencies` keyword\n"
            "  --quiet                              print nothing; use the exit status only\n"
@@ -140,6 +142,7 @@ int main(int argc, char** argv)
     std::optional<std::string> base_uri;
     std::size_t max_errors = 0;
     bool check_metaschema = true;
+    bool assert_formats = false;
     bool legacy_dependencies = true;
     bool quiet = false;
     std::vector<std::string> positional;
@@ -183,6 +186,8 @@ int main(int argc, char** argv)
             const auto v = value();
             if (!v) return exit_error;
             max_errors = static_cast<std::size_t>(std::strtoull(v->c_str(), nullptr, 10));
+        } else if (arg == "--assert-formats") {
+            assert_formats = true;
         } else if (arg == "--no-metaschema") {
             check_metaschema = false;
         } else if (arg == "--strict-dependencies") {
@@ -214,6 +219,9 @@ int main(int argc, char** argv)
     options.base_uri = base_uri ? *base_uri : file_uri(schema_path);
     options.validate_against_metaschema = check_metaschema;
     options.legacy_dependencies = legacy_dependencies;
+    if (assert_formats) {
+        options.formats = jsonschema::format_mode::assert;
+    }
     for (const auto& [uri, file] : resources) {
         auto document = read_json_file(file, problem);
         if (!document) {

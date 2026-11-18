@@ -24,6 +24,7 @@ configure_file(metaschemas/metaschemas.cpp.in ${CMAKE_CURRENT_BINARY_DIR}/metasc
 add_library(jsonschema_objects OBJECT
     compiler.cpp
     eval.cpp
+    formats.cpp
     json/access.cpp
     json/pointer.cpp
     keywords/applicator.cpp

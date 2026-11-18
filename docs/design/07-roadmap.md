@@ -12,7 +12,7 @@
 | 3b | **Output** ✅ | standard output formats (flag, basic, detailed); CLI |
 | 3c | **Bowtie** ✅ | Bowtie harness, run locally (`tools/bowtie`). Publishing to bowtie.report waits until 1.0 is code-complete |
 | 4a | **Regex** ✅ | SRELL backend (vendored), `std::regex` as an option |
-| 4b | **Formats** | format checkers and assertion mode; format-assertion vocabulary |
+| 4b | **Formats** ✅ | format checkers and assertion mode; format-assertion vocabulary; `extra_formats` |
 | 4c | **IDNA** | Unicode tables (generated and committed); `idn-hostname`, `idn-email` |
 | 4d | **Extensions** | content hooks; custom keywords API |
 | 5 | **mnxdom adoption** | mnxdom switches to json-schema-cpp; `IdIndexer.cpp` removed; MNX documents with stray properties are now rejected |
@@ -59,6 +59,14 @@
   | `is_valid` | 1.4 ms |
   | errors | 1.5 ms |
   | errors and classification | 3.3 ms |
+
+**Milestone 4b results:**
+- **Required suite:** 1,993 of 2,082. The 89 that remain are all internationalized host
+  names, which is milestone 4c: 23 `hostname` A-label cases, plus `idn-hostname` and
+  `idn-email`.
+- **Optional suite:** 194 of 206. The rest is bignum (10) and cross-draft (2), both
+  permanent.
+- `expected-failures.json` went from 513 entries to 124.
 
 **Milestone 4a results:**
 - **Required suite:** 1,603 of 2,082. Every remaining required failure (479) is a

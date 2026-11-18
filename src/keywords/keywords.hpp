@@ -23,8 +23,7 @@ enum class keyword_phase : std::uint8_t
     unevaluated
 };
 
-/// The 2020-12 vocabularies, as bits (doc 3: `$vocabulary`). format-assertion is not yet
-/// supported (milestone 4), so a meta-schema that requires it is refused.
+/// The 2020-12 vocabularies, as bits (doc 3: `$vocabulary`).
 enum vocabulary : unsigned
 {
     vocab_core = 1u << 0,
@@ -34,7 +33,8 @@ enum vocabulary : unsigned
     vocab_meta_data = 1u << 4,
     vocab_format_annotation = 1u << 5,
     vocab_content = 1u << 6,
-    vocab_all_2020_12 = (1u << 7) - 1,
+    vocab_all_2020_12 = (1u << 7) - 1,     ///< the vocabularies of the standard meta-schema
+    vocab_format_assertion = 1u << 7,       ///< only when a meta-schema lists it
 };
 
 /// The bit for a vocabulary URI, or 0 if it is not one this library implements.
@@ -96,6 +96,7 @@ std::unique_ptr<keyword> make_max_properties(const compile_scope&);
 std::unique_ptr<keyword> make_min_properties(const compile_scope&);
 std::unique_ptr<keyword> make_required(const compile_scope&);
 std::unique_ptr<keyword> make_dependent_required(const compile_scope&);
+std::unique_ptr<keyword> make_format(const compile_scope&);
 
 /// Helpers shared by keyword files.
 /// A non-negative integer keyword value (`1.0` is accepted, values above 2^64-1 saturate).

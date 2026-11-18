@@ -7,6 +7,7 @@
 add_executable(jsonschema_unit_tests
     unit/main.cpp
     unit/classification_test.cpp
+    unit/format_test.cpp
     unit/json_access_test.cpp
     unit/json_pointer_test.cpp
     unit/output_test.cpp
@@ -99,6 +100,8 @@ if(JSONSCHEMA_BUILD_CLI)
     jsonschema_cli_test(valid 0 "triangle.json: valid" ${cli_dir}/polygon.json ${cli_dir}/triangle.json)
     jsonschema_cli_test(invalid 1 "/1: the required property \"y\" is missing" ${cli_dir}/polygon.json ${cli_dir}/broken.json)
     jsonschema_cli_test(detailed 1 "\"keywordLocation\": \"/items/\\$ref\"" --output detailed ${cli_dir}/polygon.json ${cli_dir}/broken.json)
+    jsonschema_cli_test(annotate-formats 0 "bad-date.json: valid" ${cli_dir}/date.json ${cli_dir}/bad-date.json)
+    jsonschema_cli_test(assert-formats 1 "is not a valid date" --assert-formats ${cli_dir}/date.json ${cli_dir}/bad-date.json)
     jsonschema_cli_test(flag 0 "\"valid\": true" --output flag ${cli_dir}/polygon.json ${cli_dir}/triangle.json)
     add_test(NAME cli/invalid-schema COMMAND json-schema-cpp ${cli_dir}/invalid-schema.json ${cli_dir}/triangle.json)
     set_tests_properties(cli/invalid-schema PROPERTIES LABELS cli
