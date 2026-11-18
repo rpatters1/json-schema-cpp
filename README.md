@@ -2,17 +2,33 @@
 
 A complete JSON Schema **2020-12** validator for [nlohmann::json](https://github.com/nlohmann/json).
 
-> Status: milestone 1. `schema::compile` and `schema::is_valid` work for every keyword
-> except `unevaluatedProperties`/`unevaluatedItems`; `format` is annotation-only and
-> `pattern` uses an interim `std::regex` backend. Error reporting, annotations and
-> classification come next. See [docs/design](docs/design/README.md) and the
-> [roadmap](docs/design/07-roadmap.md).
+> Status: milestone 2.
+>
+> **Works now:**
+> - Every 2020-12 keyword, including `unevaluated*` and `$dynamicRef`.
+> - Error reporting.
+> - Annotations.
+> - Schema classification (doc 4).
+>
+> **Not yet:**
+> - `format` is annotation-only.
+> - `pattern` uses an interim `std::regex` backend.
+> - Meta-schema validation, `$vocabulary` and the standard output formats are not
+>   implemented.
+>
+> See [docs/design](docs/design/README.md) and the [roadmap](docs/design/07-roadmap.md).
 
 ```cpp
 #include <jsonschema/jsonschema.hpp>
 
 auto schema = jsonschema::schema::compile(nlohmann::json::parse(schema_text));
 bool ok = schema.is_valid(nlohmann::json::parse(document_text));
+
+jsonschema::collecting_error_sink errors;
+auto result = schema.validate(document, {.errors = &errors});
+for (const auto& e : errors.errors) {
+    std::cout << e.instance_location.to_string() << ": " << e.message << "\n";
+}
 ```
 
 ## Building

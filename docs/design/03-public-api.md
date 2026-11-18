@@ -105,12 +105,25 @@ the topmost error per instance subtree. That is what mnxdom's current `errorHand
 does by hand.
 
 Ready-made sinks: `collecting_error_sink` (a vector), `first_error_sink`, and
-`throwing_error_sink`.
+`throwing_error_sink`, which throws `validation_error` carrying the error's locations.
+
+`error::instance` always refers into the validated instance. A `propertyNames` failure
+is therefore reported on the object, with the property name and the inner reason in
+the message, because the name itself isn't part of the instance.
+
+### Annotation sink
+
+`annotation_sink::on_annotation(const annotation&)` receives, after validation, every
+value annotation on a passing path: the meta-data, `format` and `content*` keywords,
+and unknown keywords. Each comes with its instance location, evaluation path and
+absolute schema location. The `content*` keywords annotate strings only, and
+`contentSchema` only alongside `contentMediaType`. The official annotation test suite
+runs in CI (doc 6).
 
 ### Standard output
 
-`output_format::{flag, basic, detailed, verbose}` produce the JSON structures defined
-in 2020-12 §12 as `nlohmann::json`. They are built on the same sinks, so they add
+`output_format::{flag, basic, detailed, verbose}` (milestone 3) produce the JSON
+structures defined in 2020-12 §12 as `nlohmann::json`. They are built on the same sinks, so they add
 nothing to the core.
 
 Field and member names inside the library follow the terms of the newer output
@@ -136,6 +149,9 @@ any built-in or add new ones.
 class validation_context;   // holds per-call buffers; not thread-safe; reuse across calls on one thread
 result validate(const json&, const validation_options&, validation_context&) const;
 ```
+
+Not implemented yet. A benchmark should show that per-call allocation matters before
+it is added.
 
 ## 3.5 Custom keywords
 

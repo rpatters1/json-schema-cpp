@@ -23,6 +23,7 @@ struct schema_resource
     uri base_uri;                    ///< absolute, normalized, no fragment
     std::string base;                ///< base_uri.to_string()
     const json* root = nullptr;
+    std::string document_pointer;    ///< JSON pointer from the document root to `root`
     std::unordered_map<std::string, const json*> anchors;            ///< `$anchor` and `$dynamicAnchor`
     std::unordered_map<std::string, const json*> dynamic_anchors;    ///< `$dynamicAnchor` only
 };
@@ -32,7 +33,8 @@ struct schema_resource
 struct schema_location
 {
     const schema_resource* resource = nullptr;
-    std::string pointer;
+    std::string pointer;            ///< from the resource root
+    std::string document_pointer;   ///< from the document root (differs inside embedded resources)
 };
 
 /// 2020-12 keywords whose values are subschemas, by shape. Discovery (and so `$id` and
@@ -80,8 +82,9 @@ public:
     [[nodiscard]] const std::deque<schema_resource>& resources() const noexcept { return resources_; }
 
 private:
-    schema_resource* add_resource(const uri& base, const json& root);
-    void discover(const json& value, schema_resource* resource, const std::string& pointer, bool is_resource_root);
+    schema_resource* add_resource(const uri& base, const json& root, const std::string& document_pointer);
+    void discover(const json& value, schema_resource* resource, const std::string& pointer,
+                  const std::string& document_pointer, bool is_resource_root);
     schema_resource* find(const std::string& key) const;
 
     schema_loader loader_;

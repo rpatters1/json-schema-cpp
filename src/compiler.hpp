@@ -42,6 +42,9 @@ public:
     const node* root = nullptr;
     uri base_uri;
     bool uses_dynamic_scope = false;    ///< some `$dynamicRef` needs the dynamic scope
+    bool classification_enabled = false;
+    bool complete_walk = true;
+    bool recover = true;
 };
 
 /// What a keyword factory sees while compiling one keyword.
@@ -124,6 +127,8 @@ private:
     void compile_node(node& target);
     void check_dialect(const json& schema_value, const schema_resource& resource);
     void check_cycles() const;
+    void name_node(node& target, const schema_location& location);
+    void compute_schema_info();
 
     compiled_schema& target_;
     const compile_options& options_;

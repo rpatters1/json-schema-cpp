@@ -7,7 +7,7 @@
 | 0 | **Skeleton** ✅ | CMake, CI matrix, suite submodule and runner (everything failing), JSON access layer, `Uri` with tests |
 | 1 | **Core and validation keywords** ✅ | registry, compiler, evaluator without annotations; `$ref`/`$id`/`$anchor`/`$defs`/`$dynamicRef`; all validation-vocabulary keywords; applicators except `unevaluated*`; suite gates CI through expected failures |
 | 1a | **Readiness** ✅ | doc 8 (JSON Schema v1); `definitions` and `dependencies`; `evaluation_error`; milestone 2 naming fixed in docs 2 and 3 |
-| 2 | **Annotations** | frames, `unevaluated*`, buffered error delivery and the error sink, classification (doc 4); **required suite passes, apart from format assertions and Unicode regex** (decided, open question 13) |
+| 2 | **Annotations** ✅ | frames, `unevaluated*`, buffered error delivery and the error sink, classification (doc 4); **required suite passes, apart from format assertions and Unicode regex** (decided, open question 13) |
 | 3 | **Output and meta-schemas** | embedded meta-schemas and schema self-validation; `$vocabulary`; standard output formats; CLI; Bowtie harness |
 | 4 | **Formats and regex** | PCRE2 backend with ECMA-262 translation; all format checkers incl. IDN/IRI; content hooks; custom keywords API |
 | 5 | **mnxdom adoption** | mnxdom switches to json-schema-cpp; `IdIndexer.cpp` removed; MNX documents with stray properties are now rejected |
@@ -31,6 +31,29 @@
   - cross-draft: 2, permanent (2020-12 only).
 - `$dynamicRef` moved into milestone 1. It needs only the dynamic-scope stack, not
   annotations, and the evaluator had to carry that stack anyway.
+
+**Milestone 2 results:**
+- **Required suite:** 1,593 of 2,082 tests pass. The 489 that remain are all
+  deferred to later milestones:
+  - format assertion: 479, milestone 4;
+  - Unicode regex: 9, milestone 4;
+  - `$vocabulary`: 1, milestone 3.
+
+  All 76 `unevaluated*` tests pass.
+- **Optional suite:** 153 of 206.
+- **Annotation suite:** 55 of 55.
+- **Classification against mnxdom.** Its `IdIndexer.cpp` was compared with a
+  classification sink written as in doc 4.7, on the 58 MNX example documents plus 30
+  invalid variants of them (a stray property, or a misspelled `type` discriminator).
+  All 88 produce the same ids, locations and type names, 499 ids in all. mnxdom can
+  adopt the library (milestone 5) without waiting for milestones 3 and 4.
+- **Cost on those 58 documents** (release build, Apple Silicon):
+
+  | Mode | Time for all 58 |
+  |---|---|
+  | `is_valid` | 1.4 ms |
+  | errors | 1.5 ms |
+  | errors and classification | 3.3 ms |
 
 Classification is in milestone 2, not later, because it shares the annotation frames.
 Building the two together keeps them on the same retention rules.

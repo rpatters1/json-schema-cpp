@@ -92,13 +92,14 @@ time instead: re-entering the same `$dynamicRef` at the same instance location t
 the graph is not a tree. `$dynamicRef` keeps its initial target and anchor name and
 resolves the rest at runtime (2.6).
 
-**Static analysis passes**, run after the graph is built:
-- `needs_annotations`: true for a node if annotations from it can reach an
-  `unevaluated*` keyword at the same instance location, or if classification is on.
-  This spreads backwards through in-place applicators and `$ref`. Any `$dynamicRef`
-  is treated as reaching everything, to be safe. Nodes without the flag skip all
-  annotation bookkeeping.
-- **Name assignment** for classification (doc 4).
+**Passes run after the graph is built:**
+- **Name assignment** for classification (doc 4), and each named node's `schema_info`.
+- **Reference-cycle rejection** (above).
+
+There is no static `needs_annotations` pass. Whether annotations are needed is decided
+at run time instead: a frame is passed down only where something will read it (2.5).
+That is exact, including through `$dynamicRef`, and costs nothing where no frame is
+passed.
 - **Regex compilation** for `pattern` and `patternProperties`, so bad patterns fail at
   compile time.
 
@@ -107,27 +108,35 @@ resolves the rest at runtime (2.6).
 The core function is
 
 ```cpp
-bool evaluate(const Node&, const Json& instance, Frame& frame, Context& ctx);
+bool evaluate(const node&, const json& instance, eval_context&, frame* annotations, edge entered_by);
 ```
 
-- `Context` holds the per-validation state: the instance-path stack (segments only,
-  turned into a `json_pointer` only when reporting), the dynamic-scope stack, the
-  error, annotation and classification sinks, and options.
-- `Frame` holds the annotations collected for **one instance location** by the node
-  currently being evaluated:
-  - `evaluated_props`: a bitset over the instance object's members, by index in
-    iteration order,
-  - `evaluated_items`: the count of evaluated leading items, plus a bitset for
-    items matched by `contains`,
-  - pending reports for that location: classifications, `format`, `default`, etc.
+- `eval_context` holds the per-validation state:
+  - the instance-location and evaluation-path stacks, kept only when something will
+    report them;
+  - the dynamic-scope stack;
+  - three **logs**: errors, value annotations, and classification matches;
+  - the options.
+- `frame` holds what `unevaluated*` needs for **one instance location**:
+  - a bitset of evaluated object members, by index in iteration order;
+  - the count of evaluated leading items, an "all items" flag, and a bitset for items
+    matched by `contains`.
+
+  A node with `unevaluated*` gets a frame of its own. Every other node writes into
+  the frame its caller passed, or does no annotation work when that is `nullptr`.
+- `edge` records how evaluation entered the node (root, child, `$ref`, in-place). It
+  is used for classification's `via` (doc 4.3).
 
 **Annotation rules** (the part that matters for `unevaluated*`):
-- An in-place applicator evaluates each subschema into a *child frame*. If the
-  subschema passes, the child frame is merged into the parent. If it fails, the child
-  frame is thrown away.
-- `anyOf` evaluates **all** branches when `needs_annotations` is set, and stops at the
-  first pass otherwise. `oneOf` always evaluates enough branches to prove exactly one
-  passes. `not` never contributes annotations.
+- Unconditional in-place applicators (`$ref`, `allOf`, `then`/`else`,
+  `dependentSchemas`) pass the caller's frame straight through. Their failure fails
+  the node, and the caller then discards that frame anyway.
+- Conditional ones (`anyOf`, `oneOf`, `if`) evaluate each branch into a scratch frame,
+  which is merged only if the branch passes.
+- `anyOf` evaluates **all** branches when a frame was passed or annotations or
+  classifications are being collected, and stops at the first pass otherwise. `oneOf`
+  evaluates enough branches to prove that exactly one passes. `not` never contributes
+  annotations.
 - `if` contributes its annotations only when it passes. `then`/`else` contribute when
   they pass.
 - Child applicators (`properties` etc.) set bits in the current frame for the
@@ -135,21 +144,35 @@ bool evaluate(const Node&, const Json& instance, Frame& frame, Context& ctx);
   validity.
 - If a node fails, the caller discards its frame, which removes everything collected
   under it.
+- The value-annotation and classification logs follow the same rule by position. A
+  node remembers each log's size when it starts. If it fails, it truncates the
+  annotation log back to that size. It truncates the classification log too, unless
+  the failure was a content failure under recovery (doc 4.6). Conditional applicators
+  also erase the windows of branches that didn't count.
 - **Dropped annotations.** When output that reports failed subschemas is requested
   (`verbose`, and the newer output specification's "dropped annotations"; doc 8), a
   failed child frame's annotations move to a dropped list on the parent instead of
   being freed. They never feed `unevaluated*` or classification. Every other path
   frees them as above, so the fast paths pay nothing.
 
-**Errors** follow the same discipline. Errors found inside a branch that may later be
-discarded (`anyOf`, `oneOf`, `not`, `if`) are buffered in the child frame. They are
-promoted only when the enclosing applicator fails. This is how the final error list
-contains only errors on the failing path, with no stray errors from `anyOf` branches
-that were superseded.
+**Errors** follow the same discipline.
+- Outside any conditional applicator, an error is delivered to the sink at once: on
+  that path it decides the result.
+- Inside one (`anyOf`, `oneOf`, `not`, `if`, `contains`), errors are buffered from a
+  mark. When the applicator passes, they are dropped. When it fails, they stay, behind
+  a summary error inserted at the mark, so a parent's error comes before its
+  children's.
+- Conditional branches are first evaluated **with errors off**. Only when an `anyOf`
+  or `oneOf` fails are its branches re-run to collect their errors. `not`, `if` and
+  `contains` never report their branches' errors. Valid documents therefore never
+  build error text that is thrown away. On the MNX examples, errors plus
+  classification cost the same as classification alone, and errors alone cost the
+  same as `is_valid`.
 
-**Short-circuiting.** When `Context` has no error sink and no annotation consumers,
-and the node lacks `needs_annotations`, evaluation returns at the first failure. This
-"flag" fast path should be competitive with the fastest validators.
+**Short-circuiting.** With no sinks and no frame, a node returns at its first failing
+keyword. That is the "flag" fast path used by `is_valid`. With an error sink, every
+keyword runs so that every error is found, until `max_errors` is reached. With a
+classification sink, everything is walked.
 
 ## 2.6 `$dynamicRef`
 

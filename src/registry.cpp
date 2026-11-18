@@ -53,7 +53,7 @@ bool registry::knows(const uri& absolute) const
     return find(resource_key(absolute)) != nullptr;
 }
 
-schema_resource* registry::add_resource(const uri& base, const json& root)
+schema_resource* registry::add_resource(const uri& base, const json& root, const std::string& document_pointer)
 {
     const uri normalized = base.without_fragment().normalized();
     std::string key = normalized.to_string();
@@ -67,6 +67,7 @@ schema_resource* registry::add_resource(const uri& base, const json& root)
     resource.base_uri = normalized;
     resource.base = std::move(key);
     resource.root = &root;
+    resource.document_pointer = document_pointer;
     by_uri_.emplace(resource.base, &resource);
     resource_roots_.emplace(&root, &resource);
     return &resource;
@@ -92,7 +93,7 @@ const json& registry::add_document(json document, const uri& retrieval_uri)
             base = base.resolve(*reference);
         }
     }
-    schema_resource* resource = add_resource(base, root);
+    schema_resource* resource = add_resource(base, root, std::string());
     // The retrieval URI also identifies the document root.
     const std::string retrieval_key = resource_key(retrieval_uri);
     if (retrieval_key != resource->base) {
@@ -101,15 +102,16 @@ const json& registry::add_document(json document, const uri& retrieval_uri)
         }
         by_uri_.emplace(retrieval_key, resource);
     }
-    discover(root, resource, std::string(), true);
+    discover(root, resource, std::string(), std::string(), true);
     return root;
 }
 
-void registry::discover(const json& value, schema_resource* resource, const std::string& pointer, bool is_resource_root)
+void registry::discover(const json& value, schema_resource* resource, const std::string& pointer,
+                        const std::string& document_pointer, bool is_resource_root)
 {
     if (!value.is_object()) {
         if (value.is_boolean()) {
-            locations_.try_emplace(&value, schema_location{resource, pointer});
+            locations_.try_emplace(&value, schema_location{resource, pointer, document_pointer});
         }
         return;
     }
@@ -124,11 +126,11 @@ void registry::discover(const json& value, schema_resource* resource, const std:
             if (!reference || (reference->fragment() && !reference->fragment()->empty())) {
                 throw schema_error("json-schema-cpp: invalid $id \"" + id->get<std::string>() + "\" at " + describe(*resource, pointer));
             }
-            resource = add_resource(resource->base_uri.resolve(*reference), value);
+            resource = add_resource(resource->base_uri.resolve(*reference), value, document_pointer);
             here.clear();
         }
     }
-    if (!locations_.try_emplace(&value, schema_location{resource, here}).second) {
+    if (!locations_.try_emplace(&value, schema_location{resource, here, document_pointer}).second) {
         return; // already discovered
     }
 
@@ -155,17 +157,22 @@ void registry::discover(const json& value, schema_resource* resource, const std:
     for (const std::string_view keyword : single_subschema_keywords) {
         if (const auto it = value.find(keyword); it != value.end()) {
             std::string child = here;
+            std::string document_child = document_pointer;
             json_pointer::append(child, keyword);
-            discover(*it, resource, child, false);
+            json_pointer::append(document_child, keyword);
+            discover(*it, resource, child, document_child, false);
         }
     }
     for (const std::string_view keyword : array_subschema_keywords) {
         if (const auto it = value.find(keyword); it != value.end() && it->is_array()) {
             for (std::size_t i = 0; i < it->size(); ++i) {
                 std::string child = here;
-                json_pointer::append(child, keyword);
-                json_pointer::append(child, std::to_string(i));
-                discover((*it)[i], resource, child, false);
+                std::string document_child = document_pointer;
+                for (std::string* p : {&child, &document_child}) {
+                    json_pointer::append(*p, keyword);
+                    json_pointer::append(*p, std::to_string(i));
+                }
+                discover((*it)[i], resource, child, document_child, false);
             }
         }
     }
@@ -173,9 +180,12 @@ void registry::discover(const json& value, schema_resource* resource, const std:
         if (const auto it = value.find(keyword); it != value.end() && it->is_object()) {
             for (const auto& [name, subschema] : it->items()) {
                 std::string child = here;
-                json_pointer::append(child, keyword);
-                json_pointer::append(child, name);
-                discover(subschema, resource, child, false);
+                std::string document_child = document_pointer;
+                for (std::string* p : {&child, &document_child}) {
+                    json_pointer::append(*p, keyword);
+                    json_pointer::append(*p, name);
+                }
+                discover(subschema, resource, child, document_child, false);
             }
         }
     }
@@ -222,7 +232,7 @@ const json& registry::resolve(const uri& target)
         }
         if (!locations_.contains(value)) {
             // A location inside an unknown keyword or other non-subschema position (doc 2.3).
-            discover(*value, resource, *fragment, false);
+            discover(*value, resource, *fragment, resource->document_pointer + *fragment, false);
         }
         return *value;
     }

@@ -14,12 +14,13 @@ class ref_keyword final : public keyword
 public:
     explicit ref_keyword(const node* target) : target_(target) {}
 
-    [[nodiscard]] bool evaluate(const json& instance, eval_context& context) const override
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* annotations) const override
     {
-        return detail::evaluate(*target_, instance, context);
+        return evaluate_in_place(*target_, instance, context, annotations, segment("$ref"), edge::ref);
     }
 
     void in_place_subschemas(std::vector<const node*>& out) const override { out.push_back(target_); }
+    void collect_facts(node_facts& facts) const override { facts.always_applied.push_back(target_); }
 
 private:
     const node* target_;
@@ -32,7 +33,7 @@ public:
 
     dynamic_anchor_binding& binding() noexcept { return binding_; }
 
-    [[nodiscard]] bool evaluate(const json& instance, eval_context& context) const override
+    [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* annotations) const override
     {
         const node* target = initial_;
         if (!binding_.anchor.empty()) {
@@ -56,10 +57,11 @@ public:
             }
         }
         stack.push_back({this, &instance});
-        const bool valid = detail::evaluate(*target, instance, context);
+        const bool valid = evaluate_in_place(*target, instance, context, annotations, segment("$dynamicRef"), edge::ref);
         stack.pop_back();
         return valid;
     }
+    void collect_facts(node_facts& facts) const override { facts.always_applied.push_back(initial_); }
 
 private:
     const node* initial_;

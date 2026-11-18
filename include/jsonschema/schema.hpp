@@ -10,8 +10,10 @@
 
 #include <nlohmann/json.hpp>
 
+#include <jsonschema/classification.hpp>
 #include <jsonschema/export.hpp>
 #include <jsonschema/uri.hpp>
+#include <jsonschema/validation.hpp>
 
 #if defined(_MSC_VER)
 #pragma warning(push)
@@ -72,6 +74,7 @@ struct compile_options
     /// but its meta-schema still describes it, and a schema that uses it almost always means
     /// it. Set to false for strict 2020-12 behavior, where it is ignored like any unknown keyword.
     bool legacy_dependencies = true;
+    classification_options classification{};    ///< doc 4; off by default
 };
 
 namespace detail { class compiled_schema; }
@@ -91,6 +94,12 @@ public:
     ///
     /// Throws `evaluation_error` if the result is indeterminate (see `evaluation_error`).
     [[nodiscard]] bool is_valid(const json& instance) const;
+
+    /// Validates @p instance, reporting to the sinks in @p options. Without sinks this is
+    /// equivalent to `is_valid`. Throws `evaluation_error` like `is_valid`, and
+    /// `std::invalid_argument` if a classification sink is given but classification was not
+    /// enabled at compile time.
+    [[nodiscard]] result validate(const json& instance, const validation_options& options = {}) const;
 
     /// The base URI of the root schema: its `$id`, else `compile_options::base_uri`, else a
     /// generated `urn:uuid:` URI.
