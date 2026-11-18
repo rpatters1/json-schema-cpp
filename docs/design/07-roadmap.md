@@ -70,3 +70,7 @@ doesn't need formats, regex beyond simple `patternProperties`, or the output for
     in `validation/tests`, not `optional/`. Both depend on milestone 4 work. Either
     milestone 2's target excludes them (proposed, reflected in the table above), or
     format checkers and the PCRE2 backend move ahead of output formats.
+14. **When and how to support v1.** v1/2026 is still a working draft (doc 8).
+    Proposed: stay "2020-12 only" until it is published, then release v1 support as a
+    new major version rather than supporting both dialects in one build (doc 8.3).
+    Still open: how long to maintain the 2020-12 major version after that.
