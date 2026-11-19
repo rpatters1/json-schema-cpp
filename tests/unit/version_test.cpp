@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #include <doctest/doctest.h>
 
+#include <ostream>   // doctest prints std::string_view with operator<< (MSVC)
 #include <string>
 
 #include <jsonschema/version.hpp>
