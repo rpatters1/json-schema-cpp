@@ -46,7 +46,7 @@ add_library(jsonschema_objects OBJECT
 )
 
 set(JSONSCHEMA_GENERATED_INCLUDE_DIR ${PROJECT_BINARY_DIR}/include)
-configure_file(${PROJECT_SOURCE_DIR}/include/jsonschema/version.hpp.in
+configure_file(version.hpp.in
     ${JSONSCHEMA_GENERATED_INCLUDE_DIR}/jsonschema/version.hpp @ONLY)
 
 target_compile_features(jsonschema_objects PUBLIC cxx_std_20)
