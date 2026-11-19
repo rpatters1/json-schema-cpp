@@ -18,6 +18,7 @@ add_executable(jsonschema_unit_tests
     unit/schema_test.cpp
     unit/uri_test.cpp
     unit/validate_test.cpp
+    unit/version_test.cpp
 )
 if(JSONSCHEMA_REGEX STREQUAL "srell")
     target_compile_definitions(jsonschema_unit_tests PRIVATE JSONSCHEMA_REGEX_SRELL)

@@ -1,0 +1,11 @@
+prefix=@JSONSCHEMA_PC_PREFIX@
+libdir=@JSONSCHEMA_PC_LIBDIR@
+includedir=@JSONSCHEMA_PC_INCLUDEDIR@
+
+Name: json-schema-cpp
+Description: @PROJECT_DESCRIPTION@
+URL: @PROJECT_HOMEPAGE_URL@
+Version: @PROJECT_VERSION@
+Requires: nlohmann_json >= @JSONSCHEMA_NLOHMANN_JSON_MIN_VERSION@
+Libs: -L${libdir} -ljsonschema
+Cflags: -I${includedir}@JSONSCHEMA_PC_CFLAGS@

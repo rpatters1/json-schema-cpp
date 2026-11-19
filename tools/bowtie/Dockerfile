@@ -5,11 +5,12 @@
 #   docker build -f tools/bowtie/Dockerfile -t localhost/cpp-json-schema-cpp .
 
 FROM alpine:3.22 AS build
-RUN apk add --no-cache g++ cmake ninja git
+RUN apk add --no-cache g++ cmake ninja nlohmann-json
 WORKDIR /src
 COPY . .
 RUN cmake -S . -B /build -G Ninja -DCMAKE_BUILD_TYPE=Release \
         -DJSONSCHEMA_BUILD_TESTS=OFF -DJSONSCHEMA_BUILD_CLI=OFF -DJSONSCHEMA_BUILD_BOWTIE=ON -DJSONSCHEMA_INSTALL=OFF \
+        -DJSONSCHEMA_USE_SYSTEM_NLOHMANN_JSON=ON -DFETCHCONTENT_FULLY_DISCONNECTED=ON \
         -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc" \
     && cmake --build /build --target jsonschema_bowtie_harness
 

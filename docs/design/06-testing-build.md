@@ -79,15 +79,25 @@ few published schema/instance pairs, compared against the predecessor library.
 - CMake ≥ 3.21 and C++20.
 - Dependencies:
   - `nlohmann_json` ≥ 3.11: required (`find_package`, or FetchContent fallback).
-  - `PCRE2`: default on (`JSONSCHEMA_REGEX=pcre2|std`).
+  - Regex: SRELL, vendored, by default; `JSONSCHEMA_USE_SYSTEM_SRELL` uses an installed
+    copy, and `JSONSCHEMA_REGEX=std` uses `std::regex` instead (doc 5.2).
   - Test-only: doctest (header only; fetched without running its CMake, which CMake 4
     rejects), Google Benchmark.
 - Sources compile into an object library (`jsonschema_objects`). The public library is
   built from it, and unit tests link it directly, so internal functions are testable in
   shared builds too.
 - Targets: `jsonschema::jsonschema` (static or shared, `BUILD_SHARED_LIBS`), plus the
-  CLI `jsonschema-validate` (schema + instance files → output format of choice).
-- Installed CMake package config, `CMakePresets.json`, and a pkg-config file.
+  CLI `json-schema-cpp` (schema + instance files → output format of choice).
+- Installed: the CMake package `jsonschema` (`find_package(jsonschema 1.0)`), the
+  pkg-config file `jsonschema.pc`, the generated `export.hpp` and `version.hpp`, the CLI,
+  and the licences. `CMakePresets.json` covers development builds.
+- Version: `project(VERSION)` in the top-level `CMakeLists.txt` is the only source.
+  `version.hpp` turns it into `JSONSCHEMA_VERSION_MAJOR/MINOR/PATCH/STRING` and
+  `jsonschema::version_major/minor/patch`. `jsonschema::version()` returns the version
+  the library binary was built as. `json-schema-cpp --version` prints it.
+- Distribution builds: `-DJSONSCHEMA_USE_SYSTEM_NLOHMANN_JSON=ON
+  -DFETCHCONTENT_FULLY_DISCONNECTED=ON` builds and tests the release tarball with no
+  network access. doctest is found with `find_package` when installed.
 
 ## 6.3 CI and release
 
@@ -96,9 +106,27 @@ few published schema/instance pairs, compared against the predecessor library.
   Sanitizers (ASan, UBSan) on Linux.
 - Every build-and-test job runs unit and suite tests. A separate job posts the suite
   table as the job summary; the compliance badge will be generated from it.
-- Release on tag `vX.Y.Z`: GitHub release, source archive, then Conan Center and
-  vcpkg ports once stable (1.0).
-- Semantic versioning. Before 1.0, minor releases may change the API.
+- A job installs the library (static and shared) and builds `tests/package`, a separate
+  consumer project, against it with `find_package` and with pkg-config
+  (`tools/release/check-install.sh`).
+- **Release** (`.github/workflows/release.yml`), on a tag `vX.Y.Z`:
+  1. The tag must equal the project version, and `CHANGELOG.md` must have a section
+     for it.
+  2. `tools/release/make-dist.sh` builds `json-schema-cpp-X.Y.Z.tar.gz` and
+     `SHA256SUMS`. Unlike GitHub's automatic archives, the tarball includes the
+     JSON-Schema-Test-Suite submodule. It is reproducible: the same commit always gives
+     the same SHA-256.
+  3. The tarball is built as a distribution would build it (shared, prefix `/usr`,
+     system nlohmann_json and doctest, no network), tested, installed with `DESTDIR`,
+     and checked with the consumer project.
+  4. A build-provenance attestation, then a GitHub release with the tarball,
+     `SHA256SUMS`, and the `CHANGELOG.md` section as notes.
+
+  Run by hand (`workflow_dispatch`), it does everything except publish.
+- **Versioning:** semantic versioning of the API. The CMake package is
+  `SameMajorVersion`-compatible. The shared library's `SOVERSION` is `MAJOR.MINOR`, so
+  a minor release that changes the ABI gets a new SONAME.
+- Conan Center and vcpkg ports come after 1.0 (doc 7).
 
 ## 6.4 Licence
 

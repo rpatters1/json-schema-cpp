@@ -3,7 +3,6 @@
 
 add_executable(jsonschema_bowtie_harness harness.cpp)
 target_link_libraries(jsonschema_bowtie_harness PRIVATE jsonschema::jsonschema)
-target_compile_definitions(jsonschema_bowtie_harness PRIVATE JSONSCHEMA_VERSION="${PROJECT_VERSION}")
 set_target_properties(jsonschema_bowtie_harness PROPERTIES CXX_EXTENSIONS OFF)
 jsonschema_configure_target(jsonschema_bowtie_harness)
 

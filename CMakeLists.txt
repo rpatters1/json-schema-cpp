@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(json-schema-cpp
-    VERSION 0.0.1
+    VERSION 1.0.0
     DESCRIPTION "A complete JSON Schema 2020-12 validator for nlohmann::json"
     HOMEPAGE_URL "https://github.com/rpatters1/json-schema-cpp"
     LANGUAGES CXX)

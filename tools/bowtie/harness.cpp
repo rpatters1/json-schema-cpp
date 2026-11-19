@@ -14,10 +14,6 @@
 
 #include <jsonschema/jsonschema.hpp>
 
-#ifndef JSONSCHEMA_VERSION
-#define JSONSCHEMA_VERSION "unknown"
-#endif
-
 using json = nlohmann::json;
 
 namespace {
@@ -46,10 +42,11 @@ json start_response()
          {
              {"language", "c++"},
              {"name", "json-schema-cpp"},
-             {"version", JSONSCHEMA_VERSION},
+             {"version", std::string(jsonschema::version())},
              {"homepage", "https://github.com/rpatters1/json-schema-cpp"},
              {"issues", "https://github.com/rpatters1/json-schema-cpp/issues"},
              {"source", "https://github.com/rpatters1/json-schema-cpp"},
+             {"documentation", "https://github.com/rpatters1/json-schema-cpp#readme"},
              {"dialects", json::array({dialect_2020_12})},
              {"language_version", compiler_version()},
          }},
