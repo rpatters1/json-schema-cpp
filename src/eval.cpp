@@ -163,6 +163,72 @@ void eval_context::end_conditional(const mark& m, bool keep_errors, const keywor
     }
 }
 
+namespace {
+
+via to_via(edge e)
+{
+    switch (e) {
+    case edge::root:
+        return via::root;
+    case edge::child:
+        return via::child;
+    case edge::ref:
+        return via::ref;
+    case edge::in_place:
+    case edge::none:
+        break;
+    }
+    return via::in_place;
+}
+
+} // namespace
+
+eval_context::match_branch::match_branch(eval_context& context, bool needed)
+    : context_(context), parent_(context.current_branch_), active_(needed && context.classifying() && !context.silent_matches_)
+{
+    if (active_) context_.current_branch_ = this;
+}
+
+classification_branch_id eval_context::match_branch::announce()
+{
+    if (id_ == 0) {
+        const auto parent_id = parent_ ? parent_->announce() : 0;
+        id_ = context_.next_branch_++;
+        context_.settings_.classifications->on_branch({branch_action::begin, id_, parent_id});
+    }
+    return id_;
+}
+
+classification_branch_id eval_context::match_branch::detach()
+{
+    if (!active_) return 0;
+    context_.current_branch_ = parent_;
+    active_ = false;
+    return id_;
+}
+
+void eval_context::match_branch::finish(bool commit)
+{
+    context_.resolve_branch(detach(), commit);
+}
+
+void eval_context::resolve_branch(classification_branch_id id, bool commit, bool ambiguous)
+{
+    if (!id) return;
+    const auto parent = current_branch_ ? current_branch_->announce() : 0;
+    settings_.classifications->on_branch({commit ? branch_action::commit : branch_action::discard,
+                                          id, parent, ambiguous ? &classification_location_ : nullptr});
+}
+
+void eval_context::report_match(const node& n, const json& instance, edge reached_by, confidence certainty)
+{
+    if (silent_matches_) return;
+    const auto branch = current_branch_ ? current_branch_->announce() : 0;
+    match m{n.name, n.location, to_via(reached_by), certainty, *n.info};
+    settings_.classifications->on_classified({classification_location_, instance, {&m, 1},
+                                              static_cast<classification_status>(certainty), branch});
+}
+
 bool evaluate(const node& n, const json& instance, eval_context& context, frame* annotations, edge entered_by)
 {
     if (n.always_false) {
@@ -190,7 +256,6 @@ bool evaluate(const node& n, const json& instance, eval_context& context, frame*
         return valid;
     }
 
-    const std::size_t classification_mark = context.classifications_.size();
     const std::size_t annotation_mark = context.annotations_.size();
     if (context.settings_.record_chains) {
         context.chain_.push_back({&n, context.evaluation_path.size(), context.instance_path.size()});
@@ -203,12 +268,10 @@ bool evaluate(const node& n, const json& instance, eval_context& context, frame*
     } else {
         context.via_ = std::max(context.via_, entered_by);
     }
-    std::size_t own_entry = static_cast<std::size_t>(-1);
-    if (context.classifying() && !n.name.empty()) {
-        own_entry = context.classifications_.size();
-        context.classifications_.push_back({&instance, &n, context.via_, confidence::exact});
-        context.via_ = edge::none;
-    }
+    const auto reached_by = context.via_;
+    const bool named = context.classifying() && !n.name.empty();
+    if (named) context.via_ = edge::none;
+    eval_context::match_branch decision(context, !context.recovering() || n.last_identity_check != nullptr);
 
     if (context.settings_.annotations && !n.annotations.empty()) {
         for (const auto& [name, value] : n.annotations) {
@@ -240,6 +303,9 @@ bool evaluate(const node& n, const json& instance, eval_context& context, frame*
                 break;
             }
         }
+        if (context.classifying() && context.recovering() && !context.identity_ && k.get() == n.last_identity_check) {
+            decision.finish(true);
+        }
     }
     if (valid && n.has_unevaluated && annotations != nullptr) {
         annotations->merge(own);
@@ -248,13 +314,11 @@ bool evaluate(const node& n, const json& instance, eval_context& context, frame*
     const bool identity = context.identity_;
     if (!valid) {
         context.truncate_annotations(annotation_mark);
-        if (context.classifying()) {
-            if (!context.recovering() || identity) {
-                context.truncate_classifications(classification_mark);
-            } else if (own_entry != static_cast<std::size_t>(-1)) {
-                context.classifications_[own_entry].confidence = confidence::recovered;
-            }
-        }
+    }
+    const bool retained = valid || (context.recovering() && !identity);
+    decision.finish(retained);
+    if (named && retained) {
+        context.report_match(n, instance, reached_by, valid ? confidence::exact : confidence::recovered);
     }
     context.identity_ = saved_identity;
     context.last_identity_ = !valid && identity;

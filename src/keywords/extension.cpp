@@ -242,9 +242,9 @@ bool keyword_eval_scope::run(const subschema& s, const json* child, std::string_
     bool valid;
     {
         const eval_context::errors_off quiet(context_);
+        const eval_context::silence_matches silent(context_);
         valid = evaluate_it();
     }
-    context_.truncate_classifications(mark.classifications);
     context_.truncate_annotations(mark.annotations);
     context_.end_conditional(mark, false, keyword_, instance_, {});
     return valid;

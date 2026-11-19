@@ -74,6 +74,7 @@ struct validation_options {
     classification_sink* classifications = nullptr; // doc 4
     std::size_t          max_errors = 0;            // 0 = unlimited; limits delivery only,
                                                     // never ends a classification walk early (doc 4.6)
+    bool check_all_matches = false;                 // collect optional classification alternatives
 };
 
 class schema {

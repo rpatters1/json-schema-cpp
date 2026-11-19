@@ -268,7 +268,6 @@ void compiler::run()
     drain();
     target_.uses_dynamic_scope = !bindings_.empty();
     target_.classification_enabled = options_.classification.enabled;
-    target_.complete_walk = options_.classification.complete_walk;
     target_.recover = options_.classification.recovery.recovers();
     check_cycles();
     if (options_.classification.enabled) {
@@ -402,7 +401,19 @@ void compiler::compile_node(node& target)
     std::stable_sort(compiled.begin(), compiled.end(), [](const auto& a, const auto& b) { return a.phase < b.phase; });
     target.keywords.reserve(compiled.size());
     for (auto& entry : compiled) {
+        // Assertions and in-place subschemas can reject the identity of this object.
+        // Child schemas only do so for discriminator properties (or extension keywords).
+        if (options_.classification.enabled &&
+            (entry.phase <= keyword_phase::in_place || entry.compiled->checks_child_discriminator()
+             || find_extension(entry.compiled->name()) != nullptr)) {
+            target.last_identity_check = entry.compiled.get();
+        }
         target.keywords.push_back(std::move(entry.compiled));
+    }
+    // A pure reference delegates its entire decision to its target.
+    if (target.keywords.size() == 1 && (target.keywords[0]->name() == "$ref" || target.keywords[0]->name() == "$dynamicRef")
+        && find_extension(target.keywords[0]->name()) == nullptr) {
+        target.last_identity_check = nullptr;
     }
 }
 

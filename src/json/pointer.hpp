@@ -27,7 +27,7 @@ void append(std::string& pointer, std::string_view token);
 [[nodiscard]] std::optional<std::vector<std::string>> parse(std::string_view pointer);
 
 /// Follows @p pointer from @p root. Returns nullptr if the pointer is invalid or does not
-/// identify a value. Array indexes must be decimal with no leading zeros; "-" never matches.
+/// identify a value. Array indices must be decimal with no leading zeros; "-" never matches.
 [[nodiscard]] const json* navigate(const json& root, std::string_view pointer);
 
 } // namespace jsonschema::detail::json_pointer

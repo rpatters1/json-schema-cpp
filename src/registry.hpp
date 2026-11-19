@@ -91,7 +91,7 @@ public:
     /// The resource whose root is @p value, or nullptr.
     [[nodiscard]] const schema_resource* resource_rooted_at(const json& value) const;
 
-    /// Resources in registration order. Indexes are stable; the deque only grows.
+    /// Resources in registration order. Indices are stable; the deque only grows.
     [[nodiscard]] const std::deque<schema_resource>& resources() const noexcept { return resources_; }
 
 private:
