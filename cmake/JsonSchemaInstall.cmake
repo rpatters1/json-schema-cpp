@@ -13,7 +13,9 @@ install(TARGETS jsonschema
 
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/jsonschema
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(FILES ${PROJECT_BINARY_DIR}/include/jsonschema/export.hpp
+install(FILES
+    ${PROJECT_BINARY_DIR}/include/jsonschema/export.hpp
+    ${PROJECT_BINARY_DIR}/include/jsonschema/version.hpp
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/jsonschema)
 
 set(JSONSCHEMA_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/jsonschema)
@@ -28,7 +30,7 @@ configure_package_config_file(
     INSTALL_DESTINATION ${JSONSCHEMA_CMAKE_DIR})
 write_basic_package_version_file(
     ${PROJECT_BINARY_DIR}/jsonschemaConfigVersion.cmake
-    COMPATIBILITY SameMinorVersion)
+    COMPATIBILITY SameMajorVersion)
 
 install(FILES
     ${PROJECT_BINARY_DIR}/jsonschemaConfig.cmake
@@ -48,3 +50,30 @@ if(JSONSCHEMA_REGEX STREQUAL "srell" AND NOT JSONSCHEMA_USE_SYSTEM_SRELL)
     install(FILES ${PROJECT_SOURCE_DIR}/third_party/srell/LICENSE
         DESTINATION ${CMAKE_INSTALL_DOCDIR} RENAME LICENSE.srell)
 endif()
+
+# pkg-config. The prefix is found relative to the .pc file, so an install with
+# `cmake --install --prefix` or DESTDIR stays usable. Install directories may be absolute
+# (Nix, Guix); they are used as they are then.
+if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBDIR}")
+    set(JSONSCHEMA_PC_PREFIX "${CMAKE_INSTALL_PREFIX}")
+else()
+    file(RELATIVE_PATH JSONSCHEMA_PC_UP "/root/${CMAKE_INSTALL_LIBDIR}/pkgconfig" "/root")
+    string(REGEX REPLACE "/$" "" JSONSCHEMA_PC_UP "${JSONSCHEMA_PC_UP}")
+    set(JSONSCHEMA_PC_PREFIX "\${pcfiledir}/${JSONSCHEMA_PC_UP}")
+endif()
+foreach(kind LIBDIR INCLUDEDIR)
+    if(IS_ABSOLUTE "${CMAKE_INSTALL_${kind}}")
+        set(JSONSCHEMA_PC_${kind} "${CMAKE_INSTALL_${kind}}")
+    else()
+        set(JSONSCHEMA_PC_${kind} "\${prefix}/${CMAKE_INSTALL_${kind}}")
+    endif()
+endforeach()
+if(BUILD_SHARED_LIBS)
+    set(JSONSCHEMA_PC_CFLAGS "")
+else()
+    set(JSONSCHEMA_PC_CFLAGS " -DJSONSCHEMA_STATIC_DEFINE")
+endif()
+configure_file(${PROJECT_SOURCE_DIR}/cmake/jsonschema.pc.in
+    ${PROJECT_BINARY_DIR}/jsonschema.pc @ONLY)
+install(FILES ${PROJECT_BINARY_DIR}/jsonschema.pc
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)

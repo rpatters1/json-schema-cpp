@@ -7,3 +7,4 @@
 #include <jsonschema/schema.hpp>
 #include <jsonschema/uri.hpp>
 #include <jsonschema/validation.hpp>
+#include <jsonschema/version.hpp>

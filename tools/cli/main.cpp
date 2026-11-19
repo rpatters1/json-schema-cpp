@@ -17,6 +17,7 @@
 //   --no-metaschema                      do not validate the schema against its meta-schema
 //   --strict-dependencies                ignore the superseded `dependencies` keyword
 //   --quiet                              print nothing; use the exit status only
+//   --version                            print the version and exit
 //
 // Referenced schemas with file: URIs are read from disk, so a schema can $ref files next
 // to it. Nothing is fetched over the network.
@@ -62,6 +63,7 @@ void usage(std::ostream& out)
            "  --no-metaschema                      do not validate SCHEMA against its meta-schema\n"
            "  --strict-dependencies                ignore the superseded `dependencies` keyword\n"
            "  --quiet                              print nothing; use the exit status only\n"
+           "  --version                            print the version and exit\n"
            "\n"
            "exit status: 0 all valid, 1 some invalid, 2 error\n";
 }
@@ -161,6 +163,9 @@ int main(int argc, char** argv)
         };
         if (arg == "--help" || arg == "-h") {
             usage(std::cout);
+            return exit_valid;
+        } else if (arg == "--version") {
+            std::cout << "json-schema-cpp " << jsonschema::version() << "\n";
             return exit_valid;
         } else if (arg == "--output") {
             const auto v = value();

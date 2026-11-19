@@ -42,9 +42,12 @@ add_library(jsonschema_objects OBJECT
     unicode/idna.cpp
     unicode/unicode.cpp
     uri.cpp
+    version.cpp
 )
 
 set(JSONSCHEMA_GENERATED_INCLUDE_DIR ${PROJECT_BINARY_DIR}/include)
+configure_file(${PROJECT_SOURCE_DIR}/include/jsonschema/version.hpp.in
+    ${JSONSCHEMA_GENERATED_INCLUDE_DIR}/jsonschema/version.hpp @ONLY)
 
 target_compile_features(jsonschema_objects PUBLIC cxx_std_20)
 target_include_directories(jsonschema_objects

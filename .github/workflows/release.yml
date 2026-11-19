@@ -1,0 +1,110 @@
+# SPDX-FileCopyrightText: 2026 Robert Patterson
+# SPDX-License-Identifier: MIT
+#
+# Pushing a tag vX.Y.Z publishes a GitHub release with the source tarball and SHA256SUMS.
+# Running it by hand (workflow_dispatch) is a dry run: everything except publishing.
+
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # create the release
+      id-token: write       # provenance attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Read the project version
+        id: version
+        shell: bash
+        run: |
+          cmake -S . -B build/version -DJSONSCHEMA_BUILD_TESTS=OFF -DJSONSCHEMA_BUILD_CLI=OFF \
+                -DJSONSCHEMA_BUILD_BOWTIE=OFF -DJSONSCHEMA_INSTALL=OFF >/dev/null
+          version=$(sed -n 's/^CMAKE_PROJECT_VERSION:STATIC=//p' build/version/CMakeCache.txt)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match the project version $version"
+            exit 1
+          fi
+          if ! grep -q "^## \[$version\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section for $version"
+            exit 1
+          fi
+
+      - name: Make the source tarball
+        run: tools/release/make-dist.sh "${{ steps.version.outputs.version }}" dist
+
+      # Build the tarball as a distribution would: system dependencies, no network.
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends nlohmann-json3-dev doctest-dev pkg-config ninja-build
+
+      - name: Build and test the tarball offline
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/src"
+          tar -xzf "dist/json-schema-cpp-$VERSION.tar.gz" -C "$RUNNER_TEMP/src"
+          src="$RUNNER_TEMP/src/json-schema-cpp-$VERSION"
+          cmake -S "$src" -B "$RUNNER_TEMP/build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_SHARED_LIBS=ON \
+                -DJSONSCHEMA_USE_SYSTEM_NLOHMANN_JSON=ON -DFETCHCONTENT_FULLY_DISCONNECTED=ON
+          cmake --build "$RUNNER_TEMP/build"
+          ctest --test-dir "$RUNNER_TEMP/build" --output-on-failure --timeout 300
+          DESTDIR="$RUNNER_TEMP/destdir" cmake --install "$RUNNER_TEMP/build"
+          "$src/tools/release/check-install.sh" "$RUNNER_TEMP/destdir/usr" "$RUNNER_TEMP/consumer"
+
+      - name: Release notes
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # The version's CHANGELOG.md section, without its heading, then the checksum.
+          awk -v v="$VERSION" '
+            /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
+            found' CHANGELOG.md > dist/notes.md
+          {
+            echo
+            echo "### Source tarball"
+            echo
+            echo "\`json-schema-cpp-$VERSION.tar.gz\` includes the JSON-Schema-Test-Suite, so the full test suite runs offline."
+            echo
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+          } >> dist/notes.md
+          cat dist/notes.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Attest provenance
+        if: github.ref_type == 'tag'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/json-schema-cpp-*.tar.gz
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "v$VERSION" \
+            "dist/json-schema-cpp-$VERSION.tar.gz" dist/SHA256SUMS \
+            --title "json-schema-cpp $VERSION" --notes-file dist/notes.md --verify-tag

@@ -15,8 +15,9 @@
 | 4b | **Formats** ✅ | format checkers and assertion mode; format-assertion vocabulary; `extra_formats` |
 | 4c | **IDNA** ✅ | Unicode tables (generated and committed); `idn-hostname`, `idn-email` |
 | 4d | **Extensions** ✅ | content hooks; custom keywords API |
-| 5 | **mnxdom adoption** | mnxdom switches to json-schema-cpp; `IdIndexer.cpp` removed; MNX documents with stray properties are now rejected |
-| 6 | **1.0** | optional suite at target; fuzzing clean; benchmarks published; docs; Conan/vcpkg |
+| 5 | **mnxdom adoption** ✅ | mnxdom switches to json-schema-cpp; `IdIndexer.cpp` removed; MNX documents with stray properties are now rejected |
+| 6 | **1.0** ✅ | optional suite at target; version in the build and at run time; release tarball with SHA-256; pkg-config and install checks; Bowtie harness ready to publish |
+| — | **After 1.0** | fuzzing in CI; published benchmarks; Conan Center and vcpkg ports; publishing to bowtie.report |
 
 **Milestone 1 results:**
 - Required suite: 1,517 of 2,082 tests pass. Optional suite: 139 of 206.
@@ -59,6 +60,22 @@
   | `is_valid` | 1.4 ms |
   | errors | 1.5 ms |
   | errors and classification | 3.3 ms |
+
+**Milestone 6 results (1.0.0):**
+- **Suites:** required 2,082 / 2,082, optional 194 / 206. The other 12 are bignum (10)
+  and cross-draft (2), both permanent (doc 5.3), so the optional suite is at target.
+- **Version:** `project(VERSION 1.0.0)` is the single source. It feeds the generated
+  `<jsonschema/version.hpp>`, `jsonschema::version()`, `json-schema-cpp --version`,
+  the Bowtie harness's `start` response, the CMake package version
+  (`SameMajorVersion`) and `jsonschema.pc`.
+- **Release:** a tag `vX.Y.Z` publishes a reproducible source tarball that includes the
+  test suite, with `SHA256SUMS` and a provenance attestation (doc 6.3). The tarball
+  is checked as a distribution would build it: offline, with system dependencies.
+- **Bowtie:** the harness image builds from the system nlohmann_json. Publishing to
+  bowtie.report needs a harness repository in the bowtie-json-schema organization
+  (`tools/bowtie/README.md`).
+- **Moved to after 1.0:** fuzzing, published benchmarks, and Conan/vcpkg ports. Open
+  question 11 waits for those ports.
 
 **Milestone 4d results:**
 - **Content assertion,** opt-in with `content_mode::assert`, for the built-in RFC 4648
@@ -137,7 +154,8 @@ doesn't need formats, regex beyond simple `patternProperties`, or the output for
 10. **Bignum.** Accept `optional/bignum` as a permanent documented exception
     (proposed), or plan a backend that keeps original number text?
 11. **Package name** on Conan Center/vcpkg: confirm `json-schema-cpp` is free before
-   the first release.
+   submitting the ports (after 1.0). The GitHub release, the tarball and the CLI use
+   `json-schema-cpp`; the CMake package, library and pkg-config module use `jsonschema`.
 12. ~~`dependencies`~~: decided. Superseded keywords the spec still expects to work
     are supported (doc 1): `definitions` always, and `dependencies` by default behind
     `compile_options::legacy_dependencies`. `$recursiveRef`/`$recursiveAnchor` are not

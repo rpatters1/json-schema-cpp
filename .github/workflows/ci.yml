@@ -101,6 +101,35 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
 
+  install:
+    name: Install and consume (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux static
+            os: ubuntu-latest
+          - name: Linux shared
+            os: ubuntu-latest
+            extra: -DBUILD_SHARED_LIBS=ON
+          - name: macOS static
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and install
+        shell: bash
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DJSONSCHEMA_BUILD_TESTS=OFF ${{ matrix.extra }}
+          cmake --build build --parallel
+          cmake --install build --prefix "$RUNNER_TEMP/stage"
+
+      # find_package(jsonschema 1.0) and pkg-config, from a separate consumer project.
+      - name: Consume
+        shell: bash
+        run: tools/release/check-install.sh "$RUNNER_TEMP/stage" "$RUNNER_TEMP/consumer"
+
   test-suite:
     name: JSON-Schema-Test-Suite report
     runs-on: ubuntu-latest
