@@ -45,7 +45,6 @@ public:
     uri base_uri;
     bool uses_dynamic_scope = false;    ///< some `$dynamicRef` needs the dynamic scope
     bool classification_enabled = false;
-    bool complete_walk = true;
     bool recover = true;
 };
 

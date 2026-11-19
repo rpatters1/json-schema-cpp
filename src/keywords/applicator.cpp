@@ -60,8 +60,7 @@ private:
 /// Shared by `anyOf` and `oneOf`: what each branch did.
 struct branch_outcome
 {
-    std::size_t first;      ///< classification window
-    std::size_t last;
+    classification_branch_id branch;
     bool valid;
     bool identity;          ///< failed with an identity failure (doc 4.6)
 };
@@ -77,14 +76,14 @@ std::vector<branch_outcome> evaluate_branches(const keyword& self, const std::ve
     outcomes.reserve(subschemas.size());
     std::size_t passed = 0;
     for (std::size_t i = 0; i < subschemas.size(); ++i) {
-        const std::size_t first = context.current_mark().classifications;
+        eval_context::match_branch candidate(context);
         frame scratch;
         bool valid;
         {
             const path_scope scope(context, segment(self.name(), i));
             valid = detail::evaluate(*subschemas[i], instance, context, annotations ? &scratch : nullptr, edge::in_place);
         }
-        outcomes.push_back({first, context.current_mark().classifications, valid, !valid && context.last_failure_was_identity()});
+        outcomes.push_back({candidate.detach(), valid, !valid && context.last_failure_was_identity()});
         if (valid) {
             ++passed;
             if (annotations != nullptr) {
@@ -99,40 +98,18 @@ std::vector<branch_outcome> evaluate_branches(const keyword& self, const std::ve
 }
 
 /// Classification bookkeeping after `anyOf`/`oneOf` branches (doc 4.6).
-void settle_branches(eval_context& context, const std::vector<branch_outcome>& outcomes, const json& instance, bool ambiguous_if_many_pass)
+void settle_branches(eval_context& context, const std::vector<branch_outcome>& outcomes, bool ambiguous_if_many_pass)
 {
     if (!context.classifying()) {
         return;
     }
     const auto passed = static_cast<std::size_t>(std::count_if(outcomes.begin(), outcomes.end(), [](const auto& o) { return o.valid; }));
-    if (passed > 0) {
-        // Failed branches never classify when another branch passed.
-        for (auto it = outcomes.rbegin(); it != outcomes.rend(); ++it) {
-            if (!it->valid) {
-                context.erase_classifications(it->first, it->last);
-            }
-        }
-        if (passed > 1 && ambiguous_if_many_pass) {
-            // Windows shift left as earlier failed windows are erased.
-            std::size_t offset = 0;
-            for (const auto& o : outcomes) {
-                const std::size_t size = o.last - o.first;
-                if (o.valid) {
-                    context.mark_ambiguous(o.first - offset, o.first - offset + size, instance);
-                } else {
-                    offset += size;
-                }
-            }
-        }
-        return;
-    }
-    // Every branch failed. Those with an identity failure already removed their own entries;
-    // the others survive as candidates.
-    const auto candidates = static_cast<std::size_t>(std::count_if(outcomes.begin(), outcomes.end(), [](const auto& o) { return !o.identity; }));
-    if (candidates > 1) {
-        for (const auto& o : outcomes) {
-            context.mark_ambiguous(o.first, o.last, instance);
-        }
+    const auto candidates = passed ? passed : static_cast<std::size_t>(
+        std::count_if(outcomes.begin(), outcomes.end(), [](const auto& o) { return !o.identity; }));
+    const bool ambiguous = candidates > 1 && (passed == 0 || ambiguous_if_many_pass);
+    for (const auto& outcome : outcomes) {
+        const bool keep = passed ? outcome.valid : !outcome.identity;
+        context.resolve_branch(outcome.branch, keep, keep && ambiguous);
     }
 }
 
@@ -148,13 +125,13 @@ void collect_branch_errors(const keyword& self, const std::vector<const node*>& 
     if (!context.reporting_errors()) {
         return;
     }
+    const eval_context::silence_matches silent(context);
     for (std::size_t i = 0; i < subschemas.size(); ++i) {
         const auto before = context.current_mark();
         {
             const path_scope scope(context, segment(self.name(), i));
             static_cast<void>(detail::evaluate(*subschemas[i], instance, context, nullptr, edge::in_place));
         }
-        context.truncate_classifications(before.classifications);
         context.truncate_annotations(before.annotations);
     }
 }
@@ -169,7 +146,7 @@ public:
         const auto mark = context.begin_conditional();
         const auto outcomes = evaluate_branches(*this, subschemas_, instance, context, annotations, [](std::size_t) { return true; });
         const bool valid = std::any_of(outcomes.begin(), outcomes.end(), [](const auto& o) { return o.valid; });
-        settle_branches(context, outcomes, instance, false);
+        settle_branches(context, outcomes, false);
         if (!valid) {
             if (all_identity(outcomes)) {
                 context.identity_failure();
@@ -204,7 +181,7 @@ public:
                 passing.push_back(i);
             }
         }
-        settle_branches(context, outcomes, instance, true);
+        settle_branches(context, outcomes, true);
         if (passing.size() == 1) {
             context.end_conditional(mark, false, *this, instance, {});
             return true;
@@ -248,13 +225,13 @@ public:
         const auto mark = context.begin_conditional();
         bool matched;
         {
+            const eval_context::silence_matches silent(context);
             // If the subschema fails, its errors don't matter; if it passes, it has none.
             const eval_context::errors_off quiet(context);
             const path_scope scope(context, segment(name()));
             matched = detail::evaluate(*subschema_, instance, context, nullptr, edge::in_place);
         }
         // `not` never contributes annotations or classifications.
-        context.truncate_classifications(mark.classifications);
         context.truncate_annotations(mark.annotations);
         context.end_conditional(mark, matched, *this, instance, matched ? "the value must not match the subschema of not" : std::string());
         return !matched;
@@ -281,14 +258,14 @@ public:
         const auto mark = context.begin_conditional();
         frame scratch;
         bool matched;
+        eval_context::match_branch condition(context);
         {
             const eval_context::errors_off quiet(context);    // errors in `if` never count
             const path_scope scope(context, segment("if"));
             matched = detail::evaluate(*condition_, instance, context, annotations ? &scratch : nullptr, edge::in_place);
         }
-        if (!matched) {
-            context.truncate_classifications(mark.classifications);
-        } else if (annotations != nullptr) {
+        condition.finish(matched);
+        if (matched && annotations != nullptr) {
             annotations->merge(scratch);
         }
         context.end_conditional(mark, false, *this, instance, {});   // errors in `if` never count
@@ -451,6 +428,11 @@ public:
 
     explicit properties_keyword(std::vector<property> properties) : properties_(std::move(properties)) {}
 
+    bool checks_child_discriminator() const noexcept override
+    {
+        return std::any_of(properties_.begin(), properties_.end(), [](const property& p) { return p.discriminator; });
+    }
+
     [[nodiscard]] bool evaluate(const json& instance, eval_context& context, frame* annotations) const override
     {
         if (!instance.is_object()) {
@@ -476,7 +458,7 @@ public:
             }
             return valid;
         }
-        // With a frame, walk the instance to learn member indexes. Both sequences are sorted.
+        // With a frame, walk the instance to learn member indices. Both sequences are sorted.
         std::size_t index = 0;
         const std::size_t count = instance.size();
         for (auto it = instance.begin(); it != instance.end(); ++it, ++index) {
@@ -613,6 +595,7 @@ public:
         bool valid = true;
         for (auto it = instance.begin(); it != instance.end(); ++it) {
             const auto mark = context.begin_conditional();
+            const eval_context::silence_matches silent(context);
             const json key(it.key());
             bool ok;
             {
@@ -621,7 +604,6 @@ public:
             }
             const std::string reason = ok ? std::string() : context.first_error_since(mark);
             // Property names are not instance locations: they are never classified or annotated.
-            context.truncate_classifications(mark.classifications);
             context.truncate_annotations(mark.annotations);
             context.end_conditional(mark, false, *this, instance, {});
             if (!ok) {
@@ -736,9 +718,11 @@ public:
         const auto mark = context.begin_conditional();
         std::uint64_t matches = 0;
         for (std::size_t i = 0; i < instance.size(); ++i) {
-            const std::size_t first = context.current_mark().classifications;
+            eval_context::match_branch candidate(context);
             const eval_context::errors_off quiet(context);
-            if (evaluate_child(*subschema_, instance[i], context, segment(name()), item_token(i))) {
+            const bool matched = evaluate_child(*subschema_, instance[i], context, segment(name()), item_token(i));
+            candidate.finish(matched);
+            if (matched) {
                 ++matches;
                 if (annotations != nullptr) {
                     annotations->mark_item(i, instance.size());
@@ -746,8 +730,6 @@ public:
                 if (!see_all && (maximum_ ? matches > *maximum_ : matches >= minimum_)) {
                     break;  // the outcome can no longer change
                 }
-            } else if (context.classifying()) {
-                context.erase_classifications(first, context.current_mark().classifications);
             }
         }
         context.end_conditional(mark, false, *this, instance, {});

@@ -70,11 +70,11 @@ public:
         const auto mark = context.begin_conditional();
         bool valid;
         {
+            const eval_context::silence_matches silent(context);
             const path_scope scope(context, segment("contentSchema"));
             valid = detail::evaluate(*content_schema_, *parsed, context, nullptr, edge::child);
         }
         const std::string reason = valid ? std::string() : context.first_error_since(mark);
-        context.truncate_classifications(mark.classifications);
         context.truncate_annotations(mark.annotations);
         context.end_conditional(mark, false, *this, instance, {});
         if (!valid && context.reporting_errors()) {

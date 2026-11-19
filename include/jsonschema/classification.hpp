@@ -4,6 +4,7 @@
 // Schema classification (design doc 4): which named schemas each instance location matched.
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <optional>
 #include <span>
@@ -78,7 +79,6 @@ struct classification_options
     bool enabled = false;                                   ///< compile-time switch; off costs nothing
     namer name_rule = namer::defs_children();
     recovery_policy recovery = recovery_policy::discriminators();
-    bool complete_walk = true;                              ///< every object and array gets exactly one callback
 };
 
 /// Compile-time facts about a named schema node, for consumers (doc 4.5).
@@ -130,20 +130,37 @@ struct match
     const schema_info& info;
 };
 
-struct classification
+/// IDs are local to one validate() call. Zero denotes an unconditional match.
+using classification_branch_id = std::size_t;
+
+enum class branch_action { begin, commit, discard };
+
+struct classification_branch
 {
-    json::json_pointer instance_location;
-    const json& instance;                   ///< valid during the callback
-    std::span<const match> matches;         ///< outermost first; empty only in complete-walk mode
-    classification_status status;
+    branch_action action;
+    classification_branch_id id;
+    classification_branch_id parent;   ///< zero when a commit is final
+    /// On an ambiguous commit, downgrade matches at this exact location only.
+    const json::json_pointer* ambiguous_at = nullptr;
 };
 
-/// Receives one callback per classified instance location, in document order, after
-/// validation finishes. With `complete_walk`, every object and array gets one.
+struct classification
+{
+    const json::json_pointer& instance_location;   ///< valid during the callback
+    const json& instance;                   ///< valid during the callback
+    std::span<const match> matches;         ///< one locally matched named schema per visit
+    classification_status status;
+    classification_branch_id branch = 0;    ///< a nonzero branch can still be discarded
+};
+
+/// Receives local matches during evaluation. Branch events precede their matches and
+/// resolve them without replay. On commit, merge into the parent; on discard, drop.
+/// Sibling branches may be pending simultaneously. Abandon pending state if validate() throws.
 class JSONSCHEMA_EXPORT classification_sink
 {
 public:
     virtual ~classification_sink() = default;
+    virtual void on_branch(const classification_branch&) {}
     virtual void on_classified(const classification& c) = 0;
 };
 

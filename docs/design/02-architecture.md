@@ -172,7 +172,9 @@ bool evaluate(const node&, const json& instance, eval_context&, frame* annotatio
 **Short-circuiting.** With no sinks and no frame, a node returns at its first failing
 keyword. That is the "flag" fast path used by `is_valid`. With an error sink, every
 keyword runs so that every error is found, until `max_errors` is reached. With a
-classification sink, everything is walked.
+classification sink, evaluation continues after errors to recover named matches.
+Alternative checking can stop once the result is determined unless annotations,
+coverage, or the caller’s `check_all_matches` option requires the remaining matches.
 
 ## 2.6 `$dynamicRef`
 

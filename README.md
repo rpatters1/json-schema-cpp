@@ -79,8 +79,8 @@ found. macOS builds support a deployment target of 10.15.
 - Compile once, validate many times. A compiled schema is immutable and thread-safe to share.
 - Error messages a person can read, plus the spec's standard output formats.
 - **Schema classification:** an optional callback that reports which named schema
-  (for example a `$defs` entry) each instance location matched, collected during
-  validation. Applications can build typed indexes such as id maps in the same pass.
+  (for example a `$defs` entry) matched during evaluation. Branch begin, commit,
+  and discard events let applications build typed indices in the same pass.
 
 ## Non-goals
 

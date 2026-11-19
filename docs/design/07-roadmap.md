@@ -120,11 +120,11 @@ doesn't need formats, regex beyond simple `patternProperties`, or the output for
 2. ~~Minimum C++ standard~~: decided. C++20 throughout (doc 1).
 3. ~~Regex~~: decided. SRELL, vendored, is the default backend, and `std::regex`
    remains a build option (doc 5.2).
-4. ~~Unclassified locations on invalid documents~~: decided. Recovery policy plus
-   complete walk (doc 4.6), so mnxdom needs no walk of its own. Still open: whether
+4. ~~Unclassified locations on invalid documents~~: decided. Report retained matches under the
+   recovery policy (doc 4.6). Still open: whether
    the default discriminator rule is right for schemas other than MNX. Test it against
    a few public schemas (OpenAPI, GeoJSON, package.json) in milestone 2.
-5. **Classification match policy.** The library reports every named match with a
+5. **Classification match policy.** The library reports retained named matches with a
    `via` tag and leaves the choice to the consumer (proposed). Should it also offer
    ready-made policies such as `outermost_ref_chain()`?
 6. ~~Compatibility header~~: decided, none.

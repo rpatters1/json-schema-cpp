@@ -124,6 +124,8 @@ struct validation_options
     classification_sink* classifications = nullptr;     ///< doc 4; needs classification enabled at compile time
     std::size_t max_errors = 0;                         ///< 0 = unlimited. Limits delivery only; with a
                                                         ///< classification sink the walk still completes.
+    bool check_all_matches = false;                     ///< With a classification sink, examine all alternatives and contains items
+                                                        ///< even when validation can already determine the outcome.
 };
 
 /// The standard output formats of JSON Schema 2020-12 §12.4, produced by `schema::output`.

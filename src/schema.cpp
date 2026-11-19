@@ -3,7 +3,6 @@
 #include <jsonschema/schema.hpp>
 
 #include <algorithm>
-#include <unordered_map>
 
 #include "compiler.hpp"
 #include "node.hpp"
@@ -37,81 +36,6 @@ bool schema::is_valid(const json& instance) const
     return detail::evaluate(*impl_->root, instance, context, nullptr, detail::edge::root);
 }
 
-namespace {
-
-via to_via(detail::edge e)
-{
-    switch (e) {
-    case detail::edge::root:
-        return via::root;
-    case detail::edge::child:
-        return via::child;
-    case detail::edge::ref:
-        return via::ref;
-    case detail::edge::in_place:
-    case detail::edge::none:
-        break;
-    }
-    return via::in_place;
-}
-
-/// Delivers classifications in document order (doc 4.3, 4.6).
-class classification_delivery
-{
-public:
-    classification_delivery(const std::vector<detail::eval_context::classification_entry>& entries, classification_sink& sink,
-                            bool complete_walk)
-        : sink_(sink), complete_walk_(complete_walk)
-    {
-        for (const auto& e : entries) {
-            auto& list = by_instance_[e.instance];
-            // The same named schema can be reached twice at one location; report it once.
-            if (std::none_of(list.begin(), list.end(), [&](const auto* other) { return other->named == e.named; })) {
-                list.push_back(&e);
-            }
-        }
-    }
-
-    void walk(const json& value, json::json_pointer& location)
-    {
-        const auto found = by_instance_.find(&value);
-        const bool container = value.is_object() || value.is_array();
-        if (found != by_instance_.end() || (complete_walk_ && container)) {
-            matches_.clear();
-            auto status = classification_status::unclassified;
-            if (found != by_instance_.end()) {
-                status = classification_status::exact;
-                for (const auto* e : found->second) {
-                    matches_.push_back(match{e->named->name, e->named->location, to_via(e->reached_by), e->confidence, *e->named->info});
-                    status = std::max(status, static_cast<classification_status>(e->confidence));
-                }
-            }
-            sink_.on_classified(classification{location, value, std::span<const match>(matches_), status});
-        }
-        if (value.is_object()) {
-            for (auto it = value.begin(); it != value.end(); ++it) {
-                location.push_back(it.key());
-                walk(it.value(), location);
-                location.pop_back();
-            }
-        } else if (value.is_array()) {
-            for (std::size_t i = 0; i < value.size(); ++i) {
-                location.push_back(std::to_string(i));
-                walk(value[i], location);
-                location.pop_back();
-            }
-        }
-    }
-
-private:
-    classification_sink& sink_;
-    bool complete_walk_;
-    std::unordered_map<const json*, std::vector<const detail::eval_context::classification_entry*>> by_instance_;
-    std::vector<match> matches_;
-};
-
-} // namespace
-
 result schema::validate(const json& instance, const validation_options& options) const
 {
     if (options.classifications != nullptr && !impl_->classification_enabled) {
@@ -122,7 +46,8 @@ result schema::validate(const json& instance, const validation_options& options)
     settings.errors = options.errors;
     settings.max_errors = options.max_errors;
     settings.annotations = options.annotations != nullptr;
-    settings.classify = options.classifications != nullptr;
+    settings.classifications = options.classifications;
+    settings.check_all_matches = options.classifications != nullptr && options.check_all_matches;
     settings.recover = impl_->recover;
     detail::eval_context context(settings);
 
@@ -133,11 +58,6 @@ result schema::validate(const json& instance, const validation_options& options)
         for (const auto& a : context.annotations_) {
             options.annotations->on_annotation(annotation{a.instance_location, a.evaluation_path, a.schema_location, a.keyword, *a.value});
         }
-    }
-    if (options.classifications != nullptr) {
-        classification_delivery delivery(context.classifications_, *options.classifications, impl_->complete_walk);
-        json::json_pointer location;
-        delivery.walk(instance, location);
     }
     return result{valid};
 }

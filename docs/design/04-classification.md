@@ -44,10 +44,11 @@ classification of everything around it.
 
 ```cpp
 struct classification {
-    json::json_pointer           instance_location;
+    const json::json_pointer&    instance_location;
     const json&                  instance;     // valid during the callback
-    std::span<const match>       matches;      // outermost first; empty only in complete-walk mode (4.6)
-    classification_status        status;       // summary of the matches (4.6)
+    std::span<const match>       matches;      // one named match per visit
+    classification_status        status;       // status of this visit (4.6)
+    classification_branch_id branch;          // zero if unconditional
 };
 
 struct match {
@@ -68,6 +69,7 @@ enum class via {
 class classification_sink {
 public:
     virtual ~classification_sink() = default;
+    virtual void on_branch(const classification_branch&) {}
     virtual void on_classified(const classification&) = 0;
 };
 
@@ -75,33 +77,42 @@ struct classification_options {
     bool            enabled = false;                    // compile-time switch; off = zero cost
     namer           name_rule = namer::defs_children(); // see 4.4
     recovery_policy recovery = recovery_policy::discriminators();  // see 4.6; recovery_policy::none() = strict
-    bool            complete_walk = true;               // see 4.6
 };
 ```
 
-**One callback per instance location.** All the named schemas that applied there are
-delivered together, in evaluation order from the outside in. For an MNX `accent`
-object, `matches` would be
+**One callback per named-schema visit.** When a named node finishes, its local
+outcome and the path to its instance are available. Different named schemas, or
+repeated references to the same schema, can report the same instance location.
+The event's pointer, instance and match are borrowed for the callback.
 
-```
-[ {name:"accent",       reached_by: ref},
-  {name:"global-attrs", reached_by: in_place} ]   // via allOf → $ref
-```
+**Branch lifecycle.** A local match is delivered immediately. A zero branch ID
+means the match can be used immediately. A nonzero ID names an open decision.
+The evaluator announces `begin(id, parent)` before any event on that branch,
+then sends exactly one `commit` or `discard` on normal completion. A commit
+merges into its parent; a commit to zero is final. A discard drops everything
+merged into the branch, including previously committed children. Sibling
+alternatives can remain open together, so use IDs rather than a stack of callbacks.
 
-That lets each consumer choose its own policy, rather than the library guessing.
-mnxdom's current policy, "the name reached through the `$ref` chain, ignoring names
-reached through `allOf`", becomes: *take the last match before the first `in_place`*.
+For example, if an inner alternative succeeds inside an outer alternative that
+later loses, the consumer sees the inner commit to the outer ID and then the outer
+discard. No match is replayed. On an ambiguous commit, `ambiguous_at` identifies
+the exact instance location whose pending matches become ambiguous; descendant
+locations keep their own confidence.
 
-**`via`** is the strongest edge since the previous match at the same location, where
-`in_place` beats `ref` and `ref` beats `child`/`root`. An item reached through
-`items → anyOf → $ref` is therefore `in_place`.
+IDs are scoped to a validation call. Callback data is borrowed for the callback.
+If validation throws, abandon the call's pending decisions. A sink counting local
+visits can ignore branch notifications. A sink counting accepted matches needs to
+consume them. Internal diagnostic replays, negated schemas, and synthetic values
+such as property names produce no match events.
 
-**Delivery order.** Callbacks arrive in document order, after validation finishes. A
-location's matches aren't final until every enclosing applicator has decided. Until
-then they are kept in a classification log that is cut back at the same marks as
-annotations (doc 2.5). At the end, a structural walk of the instance delivers each
-location's matches by instance address. Memory is proportional to the number of
-matches, and it is still one pass of validation.
+**Schema edges.** `via` records the strongest edge since the enclosing named match at
+this location. In-place applicators take precedence over references.
+
+**Alternative checking.** By default classification can stop at the first passing
+`anyOf` branch or once `contains` has determined its outcome. Set
+`validation_options::check_all_matches = true` to collect all matches. Both modes
+check `oneOf` exclusivity and collect any coverage required by `unevaluated*`.
+An annotation sink independently requests all passing annotations.
 
 ## 4.4 Naming rules
 
@@ -141,11 +152,11 @@ It is decided at compile time, so the check costs one binary search. Branches of
 `anyOf`/`oneOf` are reported as matches of their own, and a consumer can ask their
 `info` instead.
 
-So the mnxdom check becomes: `instance` is an object, `instance["id"]` is a string, and
-`matches.back().info.declares_property("id")` or the policy-selected match's does.
+An MNX consumer can check the reported class and use its `info.declares_property("id")`
+when the instance contains a string ID.
 No second walk is needed.
 
-## 4.6 Invalid documents: recovery and complete walks
+## 4.6 Invalid documents: recovery
 
 Goal: with classification on, a single `validate` call replaces mnxdom's own walk
 entirely, **including on documents that fail validation**. Errors are reported in
@@ -189,7 +200,7 @@ each branch:
 |---|---|
 | exactly one | that branch's classifications are kept, `confidence::recovered` |
 | more than one | all candidates reported, `confidence::ambiguous` |
-| none | the subtree is unclassified (but still walked, see below) |
+| none | no candidate contributes a match |
 
 `oneOf` with more than one *passing* branch is an error, and is classified as
 `ambiguous` among the passing branches. `not` and a failing `if` never contribute
@@ -209,17 +220,6 @@ failure of the node that applied it. That is how an `anyOf` branch that is only
 `{"$ref": "#/$defs/grace"}` counts as "not a grace". A failure inside a child
 location is a content failure of the parent, except for a discriminator property.
 Discriminators are found in every node, named or not.
-
-### Complete walk
-
-`complete_walk = true` guarantees that **every object and array in the instance gets
-exactly one callback**, in document order, even where no schema applied: members
-rejected by `additionalProperties: false`/`unevaluatedProperties: false`, members of
-unclassified subtrees, and members with no schema. Those callbacks have empty `matches`
-and `status == unclassified`.
-
-The evaluator already walks everything it validates. For the parts no schema covers,
-it does a plain structural walk with no validation work.
 
 ### Summary status
 
@@ -254,59 +254,24 @@ the strict annotation rules give.
 - **A document with content errors** (a stray property, a missing non-discriminator
   property, an out-of-range value): ids are classified `recovered` with the right
   type name.
-- **A document with an unknown or misspelled `type` discriminator:** that object is
-  `unclassified`, and mnxdom stores an empty type name, as it does today. Its children
-  are still walked, and they are classified wherever their own schemas can be resolved
-  without the parent: for example, everything reached through a `$ref` property that
-  doesn't depend on the parent's branch.
+- **An unknown discriminator:** branches ruled out by the discriminator contribute
+  no named matches. The consumer does not receive placeholder callbacks for unknown IDs.
 
-## 4.7 What mnxdom would look like
+## 4.7 Consuming the stream in mnxdom
 
-```cpp
-auto schema = jsonschema::schema::compile(getMnxSchemaJson(), {
-    .classification = { .enabled = true },
-});
-
-struct IdCollector : jsonschema::classification_sink {
-    EntityMap& map;
-    void on_classified(const jsonschema::classification& c) override {
-        if (!c.instance.is_object()) return;
-        auto id = c.instance.find("id");
-        if (id == c.instance.end() || !id->is_string()) return;
-        if (c.status == jsonschema::classification_status::unclassified) {
-            map.add(id->get<std::string>(), c.instance_location, "");   // as today: unknown type
-            return;
-        }
-        const auto& m = mnxPolicy(c.matches);            // last match before first in_place
-        if (!m.info.declares_property("id")) return;     // dictionary key, not an id
-        map.add(id->get<std::string>(), c.instance_location,
-                c.status == jsonschema::classification_status::ambiguous ? "" : std::string(m.name));
-    }
-};
-
-collecting_error_sink errors;
-IdCollector ids{map};
-schema.validate(doc, { .errors = &errors, .classifications = &ids });   // one pass
-```
-
-`IdIndexer.cpp` goes away, and so does mnxdom's hard-coded knowledge of the schema
-layout (`#/$defs/` prefixes, `type`-based branch selection). Skipping vendor `_x` and
-comment `_c` subtrees remains a choice mnxdom makes, by checking `instance_location`.
-
-In complete-walk mode, the dictionary-key case ("`id`" used as a key in `kit` or
-`sounds`) is still handled by `declares_property`. The callback for the `kit` object
-is classified as `kit`, and `kit` doesn't declare an `id` property.
+The sink can check each local match for an MNX entity class and a declared string
+`id`. For an unconditional match, insert the ID directly. For a match on an open
+branch, copy only the candidate ID, type, and location into that branch's pending
+list. On discard, erase the list. On commit, apply any ambiguity at the specified
+location and move the candidates to the parent, or to the index if the parent is
+zero. The consumer can ignore vendor extensions and dictionary keys before
+allocating an ID candidate.
 
 ## 4.8 Cost
 
-- Compile time: one pass to assign names. Nodes are flagged so evaluation can tell.
-- Validation with the feature disabled at compile time: zero. The code path is not taken.
-- Enabled at compile time but no sink passed to `validate`: one branch per named node.
-- Enabled with a sink: annotation frames are kept for named nodes, as for
-  `unevaluated*`. The MNX schema already needs frames almost everywhere for
-  `unevaluatedProperties`, so the extra cost there is small.
-- Recovery: no cost on documents that pass. On failures, each failed named node
-  checks its own errors against its compile-time discriminator list, which is cheap.
-  Failed branches keep their errors and classifications until the enclosing
-  applicator decides. That is already required to report errors correctly.
-- Complete walk: only the parts no schema covers get the extra structural walk.
+Schema naming happens at compilation. Validation without a sink skips match
+delivery. With a sink, the evaluator borrows the current instance pointer and
+sends one match per named visit. It allocates IDs lazily for decisions that
+actually enclose a match. Only branch decisions need to survive while sibling
+alternatives settle. The validator does not retain the classification records,
+group them by location, or walk the instance a second time.

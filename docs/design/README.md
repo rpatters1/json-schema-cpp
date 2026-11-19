@@ -26,5 +26,4 @@
 - snake_case naming throughout the public API.
 - C++20 throughout, public headers included (`std::span`, designated initializers).
 - Classification keeps working on invalid documents: content errors keep their
-  classifications, and a complete walk reports every object and array (doc 4.6). This
-  replaces mnxdom's own ID walk entirely.
+  classifications. Callbacks report locations with retained named matches (doc 4.6).

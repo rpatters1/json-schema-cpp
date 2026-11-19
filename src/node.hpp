@@ -52,6 +52,9 @@ public:
     /// reject reference cycles that never consume input.
     virtual void in_place_subschemas(std::vector<const node*>& /*out*/) const {}
 
+    /// Whether a child-property failure can reject the enclosing object's identity.
+    virtual bool checks_child_discriminator() const noexcept { return false; }
+
     /// Contributes to `schema_info` for classification.
     virtual void collect_facts(node_facts& /*facts*/) const {}
 
@@ -78,6 +81,7 @@ struct node
     std::string pointer;                        ///< JSON pointer from the resource root
     std::string location;                       ///< absolute URI: resource base + "#" + encoded pointer
     bool always_false = false;                  ///< the `false` schema
+    const keyword* last_identity_check = nullptr;  ///< last keyword that could invalidate descendant matches
     bool has_unevaluated = false;               ///< has `unevaluatedProperties`/`unevaluatedItems`: needs its own frame
     std::vector<std::unique_ptr<keyword>> keywords;   ///< in evaluation order (doc 2.4)
     /// Annotation keywords (`title`, unknown keywords, ...) reported to an annotation sink.
@@ -201,7 +205,8 @@ public:
         error_sink* errors = nullptr;
         std::size_t max_errors = 0;
         bool annotations = false;
-        bool classify = false;
+        classification_sink* classifications = nullptr;
+        bool check_all_matches = false;
         bool recover = false;
         bool record_chains = false;                         ///< for "detailed" output
         std::vector<error_entry>* captured_errors = nullptr;   ///< delivered errors are also copied here
@@ -230,12 +235,12 @@ public:
     [[nodiscard]] bool reporting_errors() const noexcept { return settings_.errors != nullptr; }
     /// Paths are tracked only when something will report them.
     [[nodiscard]] bool tracking_paths() const noexcept { return settings_.errors != nullptr || settings_.annotations; }
-    [[nodiscard]] bool classifying() const noexcept { return settings_.classify; }
+    [[nodiscard]] bool classifying() const noexcept { return settings_.classifications != nullptr; }
     /// Keep evaluating after a failure (to report every error, or to classify everything).
-    [[nodiscard]] bool exhaustive() const noexcept { return (settings_.errors != nullptr && !error_limit_reached_) || settings_.classify; }
+    [[nodiscard]] bool exhaustive() const noexcept { return (settings_.errors != nullptr && !error_limit_reached_) || classifying(); }
     /// Evaluate every branch of `anyOf` and every item of `contains`, so that all passing
     /// branches contribute annotations and classifications.
-    [[nodiscard]] bool collect_all() const noexcept { return settings_.annotations || settings_.classify; }
+    [[nodiscard]] bool collect_all() const noexcept { return settings_.annotations || settings_.check_all_matches; }
 
     // --- paths ---------------------------------------------------------------------------
     std::vector<path_segment> evaluation_path;
@@ -259,14 +264,13 @@ public:
     struct mark
     {
         std::size_t errors;
-        std::size_t classifications;
         std::size_t annotations;
     };
     mark begin_conditional();
     /// Ends a conditional. If @p keep_errors, the bracketed errors stand, preceded by the summary
     /// error (if @p summary is not empty); otherwise they are discarded.
     void end_conditional(const mark& m, bool keep_errors, const keyword& source, const json& instance, std::string summary);
-    [[nodiscard]] mark current_mark() const noexcept { return {errors_.size(), classifications_.size(), annotations_.size()}; }
+    [[nodiscard]] mark current_mark() const noexcept { return {errors_.size(), annotations_.size()}; }
 
     // --- annotations and classification logs ----------------------------------------------
     struct annotation_entry
@@ -278,32 +282,42 @@ public:
         const json* value;
         std::vector<output_unit> chain;   ///< as for errors
     };
-    struct classification_entry
-    {
-        const json* instance;
-        const node* named;
-        edge reached_by;
-        jsonschema::confidence confidence;
-    };
     std::vector<annotation_entry> annotations_;
-    std::vector<classification_entry> classifications_;
-    void truncate_classifications(std::size_t size) { classifications_.resize(size); }
+    json::json_pointer classification_location_;
+    void report_match(const node&, const json&, edge, confidence);
+
+    // A decision gets a public ID only if a match actually depends on it.
+    class match_branch
+    {
+    public:
+        explicit match_branch(eval_context& context, bool needed = true);
+        match_branch(const match_branch&) = delete;
+        match_branch& operator=(const match_branch&) = delete;
+        ~match_branch() { detach(); }
+        classification_branch_id announce();
+        classification_branch_id detach();
+        void finish(bool commit);
+    private:
+        eval_context& context_;
+        match_branch* parent_;
+        classification_branch_id id_ = 0;
+        bool active_;
+    };
+    void resolve_branch(classification_branch_id id, bool commit, bool ambiguous = false);
+
+    // Internal probes and diagnostic replays must never leak events to the consumer.
+    class silence_matches
+    {
+    public:
+        explicit silence_matches(eval_context& c) : context_(c), saved_(c.silent_matches_) { c.silent_matches_ = true; }
+        silence_matches(const silence_matches&) = delete;
+        silence_matches& operator=(const silence_matches&) = delete;
+        ~silence_matches() { context_.silent_matches_ = saved_; }
+    private:
+        eval_context& context_;
+        bool saved_;
+    };
     void truncate_annotations(std::size_t size) { annotations_.resize(size); }
-    /// Removes the classification entries in [first, last).
-    void erase_classifications(std::size_t first, std::size_t last)
-    {
-        classifications_.erase(classifications_.begin() + static_cast<std::ptrdiff_t>(first),
-                               classifications_.begin() + static_cast<std::ptrdiff_t>(last));
-    }
-    /// Marks entries in [first, last) located at @p instance as ambiguous.
-    void mark_ambiguous(std::size_t first, std::size_t last, const json& instance)
-    {
-        for (std::size_t i = first; i < last; ++i) {
-            if (classifications_[i].instance == &instance) {
-                classifications_[i].confidence = confidence::ambiguous;
-            }
-        }
-    }
 
     // --- recovery (doc 4.6) ----------------------------------------------------------------
     /// Records that the node being evaluated failed in a way that means "not this kind of thing".
@@ -361,6 +375,9 @@ private:
     std::size_t open_conditionals_ = 0;
     std::size_t delivered_errors_ = 0;
     bool error_limit_reached_ = false;
+    match_branch* current_branch_ = nullptr;
+    classification_branch_id next_branch_ = 1;
+    bool silent_matches_ = false;
     bool identity_ = false;
     bool last_identity_ = false;
     edge via_ = edge::none;
@@ -383,8 +400,11 @@ public:
         }
     }
     path_scope(eval_context& context, const path_segment& segment, const instance_token& token)
-        : context_(context), push_(context.tracking_paths()), token_(true)
+        : context_(context), push_(context.tracking_paths()), token_(true), classification_child_(context.classifying())
     {
+        if (classification_child_) {
+            context_.classification_location_.push_back(token.is_index ? std::to_string(token.index) : std::string(token.key));
+        }
         if (push_) {
             context_.evaluation_path.push_back(segment);
             context_.instance_path.push_back(token);
@@ -402,6 +422,9 @@ public:
     path_scope& operator=(const path_scope&) = delete;
     ~path_scope()
     {
+        if (classification_child_) {
+            context_.classification_location_.pop_back();
+        }
         if (push_) {
             if (segment_) {
                 context_.evaluation_path.pop_back();
@@ -417,6 +440,7 @@ private:
     bool push_;
     bool segment_ = true;
     bool token_ = false;
+    bool classification_child_ = false;
 };
 
 inline path_segment segment(std::string_view keyword_name) { return {keyword_name, {}, 0, path_segment::kind::keyword_only}; }
